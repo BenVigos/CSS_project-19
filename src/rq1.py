@@ -81,9 +81,9 @@ def run_simulation(L=128, p=0.01, f=0.0001, steps=1000):
 
 if __name__ == '__main__':
     # Small demo / smoke-run when executed directly
-    L = 128
+    L = 256
     p = 0.01
-    f = 0.0005
+    f = 0.5
     steps = 1000
 
     print(f"Running smoke simulation: L={L}, p={p}, f={f}, steps={steps}")
