@@ -6,3 +6,4 @@ __pycache__/
 logs/
 uv.lock
 wildfires.egg-info/
+wildfires.egg-info
