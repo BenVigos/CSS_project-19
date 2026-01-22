@@ -18,11 +18,7 @@ from datetime import datetime
 
 # minimal imports; import run_simulation inside worker to avoid pickling issues
 
-OUTDIR = Path("results")
-OUTDIR.mkdir(exist_ok=True)
-
-
-def worker(params):
+def worker(outdir, params):
     """Run one simulation for a given parameter set.
 
     params: dict-like with keys 'L','p','f','steps','run_id'
@@ -36,16 +32,19 @@ def worker(params):
         sys.path.insert(0, str(project_root))
 
     # Import inside worker to ensure child processes can import the module
-    from src.rq1 import run_simulation
+    from simulations.drosselschwab import simulate_drosselschwab_record
     import numpy as _np
 
     L = int(params.get('L', 64))
     p = float(params.get('p', 0.01))
     f = float(params.get('f', 0.0005))
     steps = int(params.get('steps', 500))
+    param_id = params.get('param_id', '')
     run_id = params.get('run_id', '')
+    connectivity = params.get('connectivity', 4)
 
-    fires, grid = run_simulation(L=L, p=p, f=f, steps=steps)
+    # Run the record-enabled simulation
+    fires, grid, records = simulate_drosselschwab_record(L=L, p=p, f=f, steps=steps, connectivity=connectivity)
 
     # Basic summary
     summary = {
@@ -53,6 +52,7 @@ def worker(params):
         'p': p,
         'f': f,
         'steps': steps,
+        'param_id': param_id,
         'run_id': run_id,
         'num_fires': len(fires),
         'mean_size': float(_np.mean(fires)) if fires else 0.0,
@@ -60,16 +60,35 @@ def worker(params):
         'remaining_trees': int(_np.sum(grid == 1)),
     }
 
-    # Save raw fire sizes for this run to a csv file
-    timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-    fname = OUTDIR / f"fires_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
+    # Save per-step records to CSV (requested format)
+    timestamp = datetime.now().strftime('%Y%m%dT%H%M%SZ')
+    perstep_fname = outdir / f"perstep_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
     try:
-        with open(fname, 'w', newline='') as fh:
+        with open(perstep_fname, 'w', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow(['step', 'fires', 'cluster_distr', 'mean_tree_density_before'])
+            for rec in records:
+                # write lists as JSON-like strings to keep single-cell CSV
+                writer.writerow([
+                    rec['step'],
+                    '[' + ','.join(map(str, rec['fires'])) + ']',
+                    '[' + ','.join(map(str, rec['cluster_sizes'])) + ']',
+                    rec['mean_density_before'],
+                ])
+        summary['perstep_file'] = str(perstep_fname)
+    except Exception as e:
+        summary['perstep_file'] = None
+        summary['perstep_save_error'] = str(e)
+
+    # Also save aggregated raw fire sizes (legacy behavior)
+    raw_fname = outdir / f"fires_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
+    try:
+        with open(raw_fname, 'w', newline='') as fh:
             writer = csv.writer(fh)
             writer.writerow(['fire_size'])
             for s in fires:
                 writer.writerow([int(s)])
-        summary['raw_file'] = str(fname)
+        summary['raw_file'] = str(raw_fname)
     except Exception as e:
         summary['raw_file'] = None
         summary['save_error'] = str(e)
@@ -78,6 +97,9 @@ def worker(params):
 
 
 def main():
+    outdir = Path("test_save")
+    outdir.mkdir(exist_ok=True)
+
     # Example parameter sweep: small demo grid. Replace with your actual sweep.
     param_list = []
     run_idx = 0
@@ -99,7 +121,8 @@ def main():
 
     results = []
     with ProcessPoolExecutor(max_workers=max_workers) as exe:
-        futures = {exe.submit(worker, params): params for params in param_list}
+        # worker now expects (outdir, params) as its arguments
+        futures = {exe.submit(worker, outdir, params): params for params in param_list}
         for fut in as_completed(futures):
             params = futures[fut]
             try:
@@ -110,7 +133,7 @@ def main():
                 print(f"Error for params {params}: {e}")
 
     # Write a summary CSV
-    summary_file = OUTDIR / f"summary_{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.csv"
+    summary_file = outdir / f"summary_{datetime.now().strftime('%Y%m%dT%H%M%SZ')}.csv"
     keys = ['L', 'p', 'f', 'steps', 'run_id', 'num_fires', 'mean_size', 'max_size', 'remaining_trees', 'raw_file']
     with open(summary_file, 'w', newline='') as fh:
         writer = csv.DictWriter(fh, keys)
