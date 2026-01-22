@@ -7,11 +7,29 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-EXP_DIR = Path("../data/f_over_p/experiment_1").resolve()
+# Determine project root reliably (parent of this scripts folder)
+project_root = Path(__file__).resolve().parent.parent
+base_dir = (project_root / "data" / "f_over_p").resolve()
+if not base_dir.exists():
+    raise FileNotFoundError(f"Base data directory not found: {base_dir}")
+exp_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith('experiment_')]
+if not exp_dirs:
+    raise FileNotFoundError(f"No experiment directories found under {base_dir}")
+
+def _exp_index(d):
+    try:
+        return int(d.name.split('_')[-1])
+    except Exception:
+        return -1
+
+exp_dirs_sorted = sorted(exp_dirs, key=_exp_index)
+EXP_DIR = exp_dirs_sorted[-1].resolve()
 print('Experiment dir:', EXP_DIR)
 
+# find perstep files created by the worker
 perstep_files = sorted(EXP_DIR.glob('perstep_param*_*.csv'))
 print(f'Found {len(perstep_files)} per-step files')
+
 pattern = re.compile(r'perstep_param(?P<param>\d+)_.*_id(?P<run>\d+)_')
 
 
@@ -55,7 +73,7 @@ print('Loaded runs for param_ids:', sorted(runs_by_param.keys()))
 
 # create plots dir
 plots_dir = EXP_DIR / 'plots'
-plots_dir.mkdir(exist_ok=True)
+plots_dir.mkdir(parents=True, exist_ok=True)
 
 # Fire-size distributions per param_id per run
 for pid in sorted(runs_by_param.keys()):
