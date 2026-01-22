@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 def burn_step(grid, x, y, L, connectivity=4):
     """
