@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 logs/
 uv.lock
+wildfires.egg-info/
+wildfires.egg-info/*
