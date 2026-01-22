@@ -9,12 +9,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "ipykernel>=7.1.0",
     "nicegui>=3.6.0",
     "numpy>=2.4.1",
 ]
 
 [tool.setuptools]
-packages = ["simulations", "src"]
+packages = ["simulations", "src", "data","results"]
 
 [tool.setuptools.package-data]
 "*" = ["*.py"]
