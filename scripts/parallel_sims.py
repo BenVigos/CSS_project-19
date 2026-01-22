@@ -9,6 +9,7 @@ Usage (example):
 This will run a small demo sweep. To customize, edit the PARAMS list or add CLI
 argument parsing.
 """
+import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import csv
@@ -99,9 +100,34 @@ def worker(outdir, params):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Parallel parameter sweep for forest-fire model.")
+
+    parser.add_argument("--L", type=int, default=256,
+                        help="Linear system size")
+    parser.add_argument("--steps", type=int, default=10000,
+                        help="Number of simulation steps")
+
+    parser.add_argument("--p", type=float, nargs="+", default=[0.01],
+                        help="List of tree growth probabilities")
+    parser.add_argument("--f", type=float, nargs="+", default=[0.001],
+                        help="List of lightning probabilities")
+    parser.add_argument("--replicates", type=int, default=100,
+                        help="Number of runs per (p,f) parameter set")
+    parser.add_argument("--processes", type=int, default=None,
+                        help="Number of parallel processes (default: cpu count)")
+    parser.add_argument(
+    "--name",
+    type=str,
+    default=None,
+    help="Name of the experiment"
+    )
+
+    args = parser.parse_args()
+
     # Create experiments root under project/data/f_over_p and pick the next available experiment index
     project_root = Path(__file__).resolve().parent.parent
-    base_dir = (project_root / "data" / "f_over_p")
+    base_dir = (project_root / "data" / args.name)
     base_dir.mkdir(parents=True, exist_ok=True)
 
     # Find lowest available experiment index starting from 1
@@ -113,21 +139,28 @@ def main():
     print(f"Saving results to experiment directory: {outdir}")
 
     # Example parameter sweep: small demo grid. Replace with your actual sweep.
+    L = args.L
+    steps = args.steps
+    p_values = args.p
+    f_values = args.f
+    replicates = args.replicates
+
     param_list = []
     run_idx = 0
     param_idx = 0
-    L = 100
-    steps = 1000
-
-    # vary p and f in a few combinations (one simulation per tuple)
-    p_values = [0.005, 0.01]
-    f_values = [0.0001, 0.0005, 0.001]
 
     for p in p_values:
         for f in f_values:
             param_idx += 1
             run_idx += 1
-            param_list.append({'param_id': param_idx, 'L': L, 'p': p, 'f': f, 'steps': steps, 'run_id': run_idx})
+            param_list.append({
+                    "param_id": param_idx,
+                    "run_id": run_idx,
+                    "L": L,
+                    "p": p,
+                    "f": f,
+                    "steps": steps,
+                })
 
     # Allow overriding number of workers via environment variable (or use CPU count)
     max_workers = int(os.environ.get('MAX_WORKERS', multiprocessing.cpu_count()))
