@@ -61,18 +61,20 @@ def worker(outdir, params):
     }
 
     # Save per-step records to CSV (requested format)
+    import json
     timestamp = datetime.now().strftime('%Y%m%dT%H%M%SZ')
-    perstep_fname = outdir / f"perstep_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
+    perstep_fname = outdir / f"perstep_param{param_id}_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
     try:
         with open(perstep_fname, 'w', newline='') as fh:
             writer = csv.writer(fh)
-            writer.writerow(['step', 'fires', 'cluster_distr', 'mean_tree_density_before'])
+            # header must exactly match the requested format
+            writer.writerow(['step', 'fire_size', 'cluster distr', 'mean tree density'])
             for rec in records:
-                # write lists as JSON-like strings to keep single-cell CSV
+                # serialize lists as JSON strings for safety and easy parsing
                 writer.writerow([
                     rec['step'],
-                    '[' + ','.join(map(str, rec['fires'])) + ']',
-                    '[' + ','.join(map(str, rec['cluster_sizes'])) + ']',
+                    json.dumps(rec['fires']),
+                    json.dumps(rec['cluster_sizes']),
                     rec['mean_density_before'],
                 ])
         summary['perstep_file'] = str(perstep_fname)
@@ -81,7 +83,7 @@ def worker(outdir, params):
         summary['perstep_save_error'] = str(e)
 
     # Also save aggregated raw fire sizes (legacy behavior)
-    raw_fname = outdir / f"fires_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
+    raw_fname = outdir / f"fires_param{param_id}_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
     try:
         with open(raw_fname, 'w', newline='') as fh:
             writer = csv.writer(fh)
@@ -97,12 +99,23 @@ def worker(outdir, params):
 
 
 def main():
-    outdir = Path("test_save")
-    outdir.mkdir(exist_ok=True)
+    # Create experiments root under project/data/f_over_p and pick the next available experiment index
+    project_root = Path(__file__).resolve().parent.parent
+    base_dir = (project_root / "data" / "f_over_p")
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Find lowest available experiment index starting from 1
+    idx = 1
+    while (base_dir / f"experiment_{idx}").exists():
+        idx += 1
+    outdir = base_dir / f"experiment_{idx}"
+    outdir.mkdir(parents=True, exist_ok=False)
+    print(f"Saving results to experiment directory: {outdir}")
 
     # Example parameter sweep: small demo grid. Replace with your actual sweep.
     param_list = []
     run_idx = 0
+    param_idx = 0
     L = 100
     steps = 1000
 
@@ -112,8 +125,9 @@ def main():
 
     for p in p_values:
         for f in f_values:
+            param_idx += 1
             run_idx += 1
-            param_list.append({'L': L, 'p': p, 'f': f, 'steps': steps, 'run_id': run_idx})
+            param_list.append({'param_id': param_idx, 'L': L, 'p': p, 'f': f, 'steps': steps, 'run_id': run_idx})
 
     # Allow overriding number of workers via environment variable (or use CPU count)
     max_workers = int(os.environ.get('MAX_WORKERS', multiprocessing.cpu_count()))
@@ -134,7 +148,7 @@ def main():
 
     # Write a summary CSV
     summary_file = outdir / f"summary_{datetime.now().strftime('%Y%m%dT%H%M%SZ')}.csv"
-    keys = ['L', 'p', 'f', 'steps', 'run_id', 'num_fires', 'mean_size', 'max_size', 'remaining_trees', 'raw_file']
+    keys = ['L', 'p', 'f', 'steps', 'param_id', 'run_id', 'num_fires', 'mean_size', 'max_size', 'remaining_trees', 'raw_file', 'perstep_file']
     with open(summary_file, 'w', newline='') as fh:
         writer = csv.DictWriter(fh, keys)
         writer.writeheader()
