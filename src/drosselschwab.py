@@ -45,7 +45,6 @@ def burn_step(grid, x, y, L, connectivity=4):
                 # Mark for burning by pushing onto stack. We don't mark it here to 0
                 # to avoid double-counting until popped (but an early mark is fine too).
                 stack.append((nx, ny))
-
     return burned_size
 
 def step(grid, fire_sizes, L, p, f):

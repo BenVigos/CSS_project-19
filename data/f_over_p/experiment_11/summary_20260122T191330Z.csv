@@ -1,2 +1,0 @@
-L,p,f,steps,param_id,run_id,num_fires,mean_size,max_size,remaining_trees,raw_file,perstep_file
-256,0.01,0.01,1,1,1,9,1.2222222222222223,2,671,/home/ijsbrand/CMS/CS/Project/CSS_project-19/data/f_over_p/experiment_11/fires_param1_L256_p0.01_f0.01_steps1_id1_20260122T191330Z.csv,/home/ijsbrand/CMS/CS/Project/CSS_project-19/data/f_over_p/experiment_11/perstep_param1_L256_p0.01_f0.01_steps1_id1_20260122T191330Z.csv
