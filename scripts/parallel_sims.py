@@ -16,6 +16,9 @@ import csv
 import os
 from pathlib import Path
 from datetime import datetime
+import json
+import sys
+from pathlib import Path
 
 # minimal imports; import run_simulation inside worker to avoid pickling issues
 
@@ -26,8 +29,6 @@ def worker(outdir, params):
     Returns a result dict with summary stats. Also writes the raw fires to a file.
     """
     # Ensure the project root is on sys.path so child processes can import src
-    import sys
-    from pathlib import Path
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
@@ -62,7 +63,6 @@ def worker(outdir, params):
     }
 
     # Save per-step records to CSV (requested format)
-    import json
     timestamp = datetime.now().strftime('%Y%m%dT%H%M%SZ')
     perstep_fname = outdir / f"perstep_param{param_id}_L{L}_p{p}_f{f}_steps{steps}_id{run_id}_{timestamp}.csv"
     try:
