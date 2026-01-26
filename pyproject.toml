@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["simulations", "src", "data","results"]
+packages = ["simulations", "src", "data","results","scripts"]
 
 [tool.setuptools.package-data]
 "*" = ["*.py"]
