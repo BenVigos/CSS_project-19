@@ -1,0 +1,8 @@
+L,p,f,steps,param_id,run_id,num_fires,mean_size,max_size,remaining_trees,raw_file
+100,0.1,0.0001,100,1,0,40,1439.375,7412,4391,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param1_L100_p0.1_f0.0001_steps100_id0_20260126T122845Z.csv
+150,0.1,0.0001,100,2,0,96,1393.4479166666667,12065,6691,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param2_L150_p0.1_f0.0001_steps100_id0_20260126T122848Z.csv
+256,0.1,0.0001,100,3,0,229,1680.7423580786026,31496,28771,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param3_L256_p0.1_f0.0001_steps100_id0_20260126T122856Z.csv
+400,0.1,0.0001,100,4,0,656,1466.8643292682927,73692,55874,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param4_L400_p0.1_f0.0001_steps100_id0_20260126T122913Z.csv
+600,0.1,0.0001,100,5,0,1360,1592.4205882352942,131914,133707,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param5_L600_p0.1_f0.0001_steps100_id0_20260126T122942Z.csv
+800,0.1,0.0001,100,6,0,2501,1545.1079568172731,269436,229951,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param6_L800_p0.1_f0.0001_steps100_id0_20260126T123021Z.csv
+1000,0.1,0.0001,100,7,0,3825,1581.3019607843137,445398,347631,C:\Users\rorka\PycharmProjects\AIHealth\CSS_project-19\data\figuresRohan\experiment_3\fires_param7_L1000_p0.1_f0.0001_steps100_id0_20260126T123126Z.csv
