@@ -40,7 +40,7 @@ def _compute_cluster_sizes(grid, connectivity=4):
     return clusters
 
 
-def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity=4):
+def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity=4, suppress=0):
     """Run simulation and return aggregated fires + final grid + per-step records.
 
     Returns (fire_sizes, grid, records) where records is a list of dicts per step:
@@ -71,15 +71,19 @@ def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity
             # 3. Burning Phase: Burn the whole connected cluster
             for start_pos in strikes:
                 if grid[start_pos[0], start_pos[1]] == 1:
-                    size = burn_step(grid, start_pos[0], start_pos[1], L, connectivity=connectivity)
+                    # cast to plain int to avoid numpy scalar serialization issues
+                    size = int(burn_step(grid, start_pos[0], start_pos[1], L, connectivity=connectivity, suppress=suppress))
                     step_fires.append(size)
                     fire_sizes.append(size)
 
         # After burning, compute cluster sizes of remaining trees
         cluster_sizes = _compute_cluster_sizes(grid, connectivity=connectivity)
 
+        # ensure cluster sizes are plain ints for JSON/CSV serialization
+        cluster_sizes = [int(c) for c in cluster_sizes]
+
         records.append({
-            'step': i,
+            'step': int(i),
             'fires': list(step_fires),
             'cluster_sizes': list(cluster_sizes),
             'mean_density_before': mean_density_before,
@@ -100,16 +104,28 @@ def simulate_drosselschwab(L=10, p=0.05, f=0.001, steps=500):
     return fire_sizes, grid
 
 
-def simulate_drosselschwab_steps(L=10, p=0.05, f=0.001, steps=500):
+def simulate_drosselschwab_steps(
+    L=10, p=0.05, f=0.001, steps=500, suppress=0, advanced_state=False,
+    initial_grid=None, initial_fire_sizes=None, start_step=0,
+):
     """Yield (grid, fire_sizes, step_index) after each simulation step for live UI updates.
 
     fire_sizes is a single list for the whole run; step() appends to it in place
     on each lightning strike (one entry per fire = cluster size). It therefore
     grows across steps. Each yield returns a snapshot list(fire_sizes).
-    """
-    grid = np.zeros((L, L), dtype=np.int8)
-    fire_sizes = []
 
-    for i in range(steps):
-        step(grid, fire_sizes, L, p, f)
+    If initial_grid and initial_fire_sizes are provided, continue from that state
+    for steps start_step+1 .. steps (start_step is the step index already reached).
+    """
+    if initial_grid is not None and initial_fire_sizes is not None:
+        grid = np.array(initial_grid, dtype=np.int8, copy=True)
+        fire_sizes = list(initial_fire_sizes)
+        step_range = range(start_step, steps)
+    else:
+        grid = np.zeros((L, L), dtype=np.int8)
+        fire_sizes = []
+        step_range = range(steps)
+
+    for i in step_range:
+        step(grid, fire_sizes, L, p, f, suppress=suppress, advanced_state=advanced_state)
         yield np.copy(grid), list(fire_sizes), i + 1

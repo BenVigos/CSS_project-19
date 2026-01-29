@@ -6,8 +6,7 @@ import numpy as np
 from nicegui import ui
 
 from simulations.drosselschwab import simulate_drosselschwab_steps
-from simulations.inhomogeneous import simulate_inhomogeneous_steps
-from config import FIRE_CMAP, FIRE_NORM, INH_CMAP, INH_NORM, MAX_STEPS_FOR_TIME_LIMIT, RENDER_INTERVAL
+from config import FIRE_CMAP, FIRE_NORM, MAX_STEPS_FOR_TIME_LIMIT, RENDER_INTERVAL
 from content import (
     INTRODUCTION_TITLE, INTRODUCTION_CONTENT,
     METHODOLOGY_TITLE, METHODOLOGY_CONTENT,
@@ -73,14 +72,13 @@ def labeled_slider(label, slider, fmt='{:.3g}'):
         ).classes('text-gray-500 text-sm tabular-nums')
 
 
-def create_simulation_panel(show_suppress=False, mode=None):
+def create_simulation_panel(show_suppress=False):
     """
     Factory function to create a simulation panel with controls and plots.
-    mode: None for foundation/suppression, 'inhomogeneous' for Pine/Oak model.
     Returns a dict with all UI elements and state needed to run the simulation.
     """
-    panel = {'mode': mode}
-
+    panel = {}
+    
     with ui.row().classes('gap-8 items-start justify-center flex-wrap'):
         # ---- Control panel ----
         with ui.column().classes('w-72 gap-4'):
@@ -102,14 +100,6 @@ def create_simulation_panel(show_suppress=False, mode=None):
                 ui.label('Trees replanted per fire (suppression)').classes('text-xs text-gray-500 -mt-2')
             else:
                 panel['suppress'] = None
-
-            if mode == 'inhomogeneous':
-                panel['oak_ratio'] = ui.slider(min=0.0, max=1.0, value=0.3, step=0.05)
-                labeled_slider('oak_ratio', panel['oak_ratio'])
-                ui.label('Fraction of new trees that are oak').classes('text-xs text-gray-500 -mt-2')
-                panel['p_burn_oak'] = ui.slider(min=0.0, max=1.0, value=0.3, step=0.05)
-                labeled_slider('p_burn_oak', panel['p_burn_oak'])
-                ui.label('Oak burn probability (per fire contact)').classes('text-xs text-gray-500 -mt-2')
 
             panel['max_time_seconds'] = ui.slider(min=5, max=300, value=180, step=5)
             labeled_slider('Max time (s)', panel['max_time_seconds'], fmt='{:.0f}')
@@ -133,10 +123,7 @@ def create_simulation_panel(show_suppress=False, mode=None):
                     ui.label('■').style('color: #1d1d1d; -webkit-text-stroke: 1px #666;')
                     ui.label('Empty')
                     ui.label('■').style('color: #1b5e20')
-                    ui.label('Pine' if mode == 'inhomogeneous' else 'Tree')
-                    if mode == 'inhomogeneous':
-                        ui.label('■').style('color: #4caf50')
-                        ui.label('Oak')
+                    ui.label('Tree')
                     ui.label('■').style('color: #b71c1c')
                     ui.label('Fire')
                     if show_suppress:
@@ -144,6 +131,7 @@ def create_simulation_panel(show_suppress=False, mode=None):
                         ui.label('Suppressed')
             panel['fire_plot'] = ui.pyplot(figsize=(5.5, 4), close=False)
 
+    # Always use advanced state visualization in the UI
     panel['advanced_state'] = True
     return panel
 
@@ -159,10 +147,10 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
     # ---- Mode tabs (fire theme) ----
     with ui.tabs().classes('w-full justify-center') as mode_tabs:
-        tab_info = ui.tab('INTRODUCTION').classes('text-gray-300')
+        tab_info = ui.tab('INFORMATION').classes('text-gray-300')
         tab_basic = ui.tab('FOUNDATION').classes('text-gray-300')
         tab_suppression = ui.tab('SUPPRESSION').classes('text-gray-300')
-        tab_slime = ui.tab('INHOMOGENEITY').classes('text-gray-300')
+        tab_slime = ui.tab('INHOMOGENOUS').classes('text-gray-300')
 
     with ui.tab_panels(mode_tabs, value=tab_info).classes('w-full flex justify-center'):
         # ---- INFORMATION tab ----
@@ -175,17 +163,31 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
                     with ui.card().classes('bg-transparent shadow-none'):
                         ui.label(METHODOLOGY_TITLE).classes('text-lg font-semibold text-white mb-2')
-                        ui.markdown(METHODOLOGY_CONTENT, extras=['latex']).classes('text-gray-300')
+                        ui.markdown(METHODOLOGY_CONTENT).classes('text-gray-300')
 
                     with ui.card().classes('bg-transparent shadow-none'):
                         ui.label(APPLICATIONS_TITLE).classes('text-lg font-semibold text-white mb-2')
                         ui.markdown(APPLICATIONS_CONTENT).classes('text-gray-300')
 
-                    with ui.card().classes('bg-transparent shadow-none'):
-                        ui.label(SOURCES_TITLE).classes('text-lg font-semibold text-white mb-2')
-                        ui.markdown(SOURCES_CONTENT, extras=['latex']).classes('text-gray-300')
+| Domain | Mechanism |
+| --- | --- |
+| **Epidemiology** | Pathogen spread through social clusters. |
+| **Finance** | Market contagion and systemic risk. |
+| **Infrastructure** | Cascading power grid failures. |
 
-                ui.label(AUTHORS).classes('text-gray-400 text-sm')
+Whether it’s a forest or a bank, the core logic holds: once density reaches a certain point, the system, left alone, invariably leads to an "avalanche."                        ''').classes('text-gray-300')
+
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Sources').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+1. Drossel, B., & Schwabl, F. (1992). Self-Organized Critical Forest-Fire Model. *Physical Review Letters*, 69(11), 1629-1632. [DOI](https://doi.org/10.1103/PhysRevLett.69.1629)
+
+2. Karafyllidis, I., & Thanailakis, A. (1997). A Model for Predicting Forest Fire Spreading Using Cellular Automata. *Ecological Modelling*, 99(2-3), 283-297. [DOI](https://doi.org/10.1016/S0304-3800(96)01942-4)
+
+3. Malamud, B. D., et al. (1998). Forest Fires: An Example of Self-Organized Critical Behavior. *Science*, 281(5384), 1840-1842. [DOI](https://doi.org/10.1126/science.281.5384.1840)
+                        ''').classes('text-gray-300')
+
+                ui.label('Authors: Rakesh Rohan Kanhai, Konstantinos Benjamin Vigos, Jsbrand Meeter, Andrew Crossley').classes('text-gray-400 text-sm')
 
         # ---- FOUNDATION tab ----
         with ui.tab_panel(tab_basic).classes('w-full flex justify-center items-center'):
@@ -195,9 +197,9 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
         with ui.tab_panel(tab_suppression).classes('w-full flex justify-center items-center'):
             supp_panel = create_simulation_panel(show_suppress=True)
 
-        # ---- INHOMOGENEITY tab ----
+        # ---- INHOMOGENOUS: empty for now ----
         with ui.tab_panel(tab_slime).classes('w-full flex justify-center items-center'):
-            inhom_panel = create_simulation_panel(mode='inhomogeneous')
+            pass
 
 # =========================
 # Simulation loop
@@ -206,8 +208,6 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
 def _init_grid_plot(panel, L_val):
     """Initialize grid plot artists once. Returns (fig, ax, img)."""
-    cmap = INH_CMAP if panel.get('mode') == 'inhomogeneous' else FIRE_CMAP
-    norm = INH_NORM if panel.get('mode') == 'inhomogeneous' else FIRE_NORM
     with panel['grid_plot']:
         plt.clf()
         fig, ax = plt.gcf(), plt.gca()
@@ -215,8 +215,8 @@ def _init_grid_plot(panel, L_val):
         ax.patch.set_facecolor('none')
         img = ax.imshow(
             np.zeros((L_val, L_val), dtype=np.int8),
-            cmap=cmap,
-            norm=norm,
+            cmap=FIRE_CMAP,
+            norm=FIRE_NORM,
         )
         ax.set_xticks([])
         ax.set_yticks([])
@@ -292,63 +292,33 @@ async def run_and_plot(panel, resume=False):
     max_seconds = float(panel['max_time_seconds'].value)
     start_time = time.monotonic()
 
-    suppress_val = int(panel['suppress'].value) if panel.get('suppress') is not None else 0
+    suppress_val = int(panel['suppress'].value) if panel['suppress'] is not None else 0
     advanced_state = panel.get('advanced_state', False)
-    is_inhomogeneous = panel.get('mode') == 'inhomogeneous'
 
     try:
-        if is_inhomogeneous:
-            oak_ratio = float(panel['oak_ratio'].value)
-            p_burn_oak = float(panel['p_burn_oak'].value)
-            if resume and panel['paused_state']['grid'] is not None:
-                L_val = panel['paused_state']['grid'].shape[0]
-                gen = simulate_inhomogeneous_steps(
-                    L=L_val,
-                    p=panel['p'].value,
-                    f=panel['f'].value,
-                    steps=MAX_STEPS_FOR_TIME_LIMIT,
-                    oak_ratio=oak_ratio,
-                    p_burn_oak=p_burn_oak,
-                    advanced_state=advanced_state,
-                    initial_grid=panel['paused_state']['grid'],
-                    initial_fire_sizes=panel['paused_state']['fire_sizes'],
-                    start_step=panel['paused_state']['step'],
-                )
-            else:
-                L_val = int(panel['L'].value)
-                gen = simulate_inhomogeneous_steps(
-                    L=L_val,
-                    p=panel['p'].value,
-                    f=panel['f'].value,
-                    steps=MAX_STEPS_FOR_TIME_LIMIT,
-                    oak_ratio=oak_ratio,
-                    p_burn_oak=p_burn_oak,
-                    advanced_state=advanced_state,
-                )
+        if resume and panel['paused_state']['grid'] is not None:
+            L_val = panel['paused_state']['grid'].shape[0]
+            gen = simulate_drosselschwab_steps(
+                L=L_val,
+                p=panel['p'].value,
+                f=panel['f'].value,
+                steps=MAX_STEPS_FOR_TIME_LIMIT,
+                suppress=suppress_val,
+                advanced_state=advanced_state,
+                initial_grid=panel['paused_state']['grid'],
+                initial_fire_sizes=panel['paused_state']['fire_sizes'],
+                start_step=panel['paused_state']['step'],
+            )
         else:
-            if resume and panel['paused_state']['grid'] is not None:
-                L_val = panel['paused_state']['grid'].shape[0]
-                gen = simulate_drosselschwab_steps(
-                    L=L_val,
-                    p=panel['p'].value,
-                    f=panel['f'].value,
-                    steps=MAX_STEPS_FOR_TIME_LIMIT,
-                    suppress=suppress_val,
-                    advanced_state=advanced_state,
-                    initial_grid=panel['paused_state']['grid'],
-                    initial_fire_sizes=panel['paused_state']['fire_sizes'],
-                    start_step=panel['paused_state']['step'],
-                )
-            else:
-                L_val = int(panel['L'].value)
-                gen = simulate_drosselschwab_steps(
-                    L=L_val,
-                    p=panel['p'].value,
-                    f=panel['f'].value,
-                    steps=MAX_STEPS_FOR_TIME_LIMIT,
-                    suppress=suppress_val,
-                    advanced_state=advanced_state,
-                )
+            L_val = int(panel['L'].value)
+            gen = simulate_drosselschwab_steps(
+                L=L_val,
+                p=panel['p'].value,
+                f=panel['f'].value,
+                steps=MAX_STEPS_FOR_TIME_LIMIT,
+                suppress=suppress_val,
+                advanced_state=advanced_state,
+            )
 
         grid_fig, grid_ax, grid_img = _init_grid_plot(panel, L_val)
         fire_fig, fire_ax, fire_line, fire_trendline, fire_no_data_text = _init_fire_plot(panel)
@@ -382,8 +352,6 @@ async def run_and_plot(panel, resume=False):
                 label = f'L={L_val}, p={panel["p"].value:.3g}, f={panel["f"].value:.3g}'
                 if suppress_val > 0:
                     label += f', suppress={suppress_val}'
-                if is_inhomogeneous:
-                    label += f', oak={panel["oak_ratio"].value:.2g}, p_burn_oak={panel["p_burn_oak"].value:.2g}'
                 label += f' (step {step_i})'
                 grid_ax.set_xlabel(label)
 
@@ -469,9 +437,8 @@ def wire_panel_callbacks(panel):
     panel['run_button'].on_click(on_run_or_resume)
 
 
-# Wire up all simulation panels
+# Wire up both panels
 wire_panel_callbacks(basic_panel)
 wire_panel_callbacks(supp_panel)
-wire_panel_callbacks(inhom_panel)
 
 ui.run(dark=True)

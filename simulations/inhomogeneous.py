@@ -1,5 +1,5 @@
 import numpy as np
-from src.rq3 import burn_step_inhomogeneous 
+from src.rq3 import burn_step_inhomogeneous, step_inhomogeneous 
 
 
 
@@ -106,3 +106,33 @@ def simulate_inhomogeneous_record(L=128, p=0.01, f=0.0001, steps=1000, oak_ratio
         })
 
     return fire_sizes, grid, records
+
+
+def simulate_inhomogeneous_steps(
+    L=128,
+    p=0.01,
+    f=0.0001,
+    steps=1000,
+    oak_ratio=0.3,
+    p_burn_oak=0.3,
+    advanced_state=False,
+    initial_grid=None,
+    initial_fire_sizes=None,
+    start_step=0,
+):
+    """Yield (grid, fire_sizes, step_index) after each simulation step for live UI updates."""
+    if initial_grid is not None and initial_fire_sizes is not None:
+        grid = np.array(initial_grid, dtype=np.int8, copy=True)
+        fire_sizes = list(initial_fire_sizes)
+        step_range = range(start_step, steps)
+    else:
+        grid = np.zeros((L, L), dtype=np.int8)
+        fire_sizes = []
+        step_range = range(steps)
+
+    for i in step_range:
+        step_inhomogeneous(
+            grid, fire_sizes, L, p, f,
+            oak_ratio=oak_ratio, p_burn_oak=p_burn_oak, advanced_state=advanced_state,
+        )
+        yield np.copy(grid), list(fire_sizes), i + 1
