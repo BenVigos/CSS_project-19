@@ -3,7 +3,6 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import BoundaryNorm, ListedColormap
 from nicegui import ui
 
 from simulations.drosselschwab import simulate_drosselschwab_steps
@@ -15,7 +14,6 @@ from config import FIRE_CMAP, FIRE_NORM, MAX_STEPS_FOR_TIME_LIMIT, RENDER_INTERV
 
 ui.dark_mode().enable()
 
-# Match tab bar and tab panels background; centre content within each tab
 ui.add_head_html('''
 <style>
   .wildfire-app .q-tabs,
@@ -83,11 +81,11 @@ def create_simulation_panel(show_suppress=False):
 
             panel['p'] = ui.slider(min=0.0, max=1.0, value=0.01, step=0.01)
             labeled_slider('p', panel['p'])
-            ui.label('Tree growth probability per empty cell per step').classes('text-xs text-gray-500 -mt-2')
+            ui.label('Tree growth probability').classes('text-xs text-gray-500 -mt-2')
 
             panel['f'] = ui.slider(min=0.0, max=0.1, value=0.001, step=0.001)
             labeled_slider('f', panel['f'])
-            ui.label('Ignition probability per step').classes('text-xs text-gray-500 -mt-2')
+            ui.label('Ignition probability').classes('text-xs text-gray-500 -mt-2')
 
             if show_suppress:
                 panel['suppress'] = ui.slider(min=0, max=1000, value=500, step=100)
@@ -142,11 +140,76 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
     # ---- Mode tabs (fire theme) ----
     with ui.tabs().classes('w-full justify-center') as mode_tabs:
+        tab_info = ui.tab('INFORMATION').classes('text-gray-300')
         tab_basic = ui.tab('FOUNDATION').classes('text-gray-300')
         tab_suppression = ui.tab('SUPPRESSION').classes('text-gray-300')
         tab_slime = ui.tab('INHOMOGENOUS').classes('text-gray-300')
 
-    with ui.tab_panels(mode_tabs, value=tab_basic).classes('w-full flex justify-center'):
+    with ui.tab_panels(mode_tabs, value=tab_info).classes('w-full flex justify-center'):
+        # ---- INFORMATION tab ----
+        with ui.tab_panel(tab_info).classes('w-full h-full flex justify-center items-center'):
+            with ui.column().classes('items-center gap-8'):
+                with ui.grid(columns=2).classes('gap-6'):
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Introduction').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown(r'''
+The **Drossel-Schwabl forest fire model** is a cellular automaton that exhibits self-organized criticality (SOC). 
+The model operates on an $L \\times L$ lattice where each cell can be in one of three states: empty, tree, or burning.
+
+The dynamics are governed by two key parameters:
+- **$p$** — probability that an empty cell grows a tree
+- **$f$** — probability that a tree spontaneously ignites (lightning strike)
+
+At each time step:
+1. A burning tree becomes an empty cell
+2. A tree ignites if any neighbor is burning
+3. A tree ignites with probability $f$ (lightning)
+4. An empty cell grows a tree with probability $p$
+
+The model produces a power-law distribution of fire sizes: $P(s) \\sim s^{-\\tau}$, characteristic of critical phenomena.
+                        ''', extras=['latex']).classes('text-gray-300')
+
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Methodology').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+Our simulation implements the Drossel-Schwabl model with the following approach:
+
+1. **Initialization**: Grid cells are randomly populated with trees based on initial density
+2. **Synchronous Updates**: All cells are updated simultaneously each time step using NumPy vectorized operations
+3. **Fire Propagation**: Fires spread to all orthogonally adjacent trees using convolution-based neighbor detection
+4. **Data Collection**: Fire sizes are recorded by counting connected burning regions using flood-fill algorithms
+5. **Statistical Analysis**: Fire size distributions are computed and fitted to power laws to extract the critical exponent $\\tau$
+
+The **suppression model** extends this by replanting trees after fires, simulating human intervention in wildfire management.
+                        ''').classes('text-gray-300')
+
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Why study wildfires?').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+The **Drossel-Schwab model** helps firefighting move from reactive suppression to predictive strategies. By applying these models to real forests, teams can identify **criticality thresholds** where a single spark could trigger a catastrophic burn.
+
+The model's **self-organized criticality** applies to any system defined by contagion and connectivity:
+
+| Domain | Mechanism |
+| --- | --- |
+| **Epidemiology** | Pathogen spread through social clusters. |
+| **Finance** | Market contagion and systemic risk. |
+| **Infrastructure** | Cascading power grid failures. |
+
+Whether it’s a forest or a bank, the core logic holds: once density reaches a certain point, the system, left alone, invariably leads to an "avalanche."                        ''').classes('text-gray-300')
+
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Sources').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+1. Drossel, B., & Schwabl, F. (1992). Self-Organized Critical Forest-Fire Model. *Physical Review Letters*, 69(11), 1629-1632. [DOI](https://doi.org/10.1103/PhysRevLett.69.1629)
+
+2. Karafyllidis, I., & Thanailakis, A. (1997). A Model for Predicting Forest Fire Spreading Using Cellular Automata. *Ecological Modelling*, 99(2-3), 283-297. [DOI](https://doi.org/10.1016/S0304-3800(96)01942-4)
+
+3. Malamud, B. D., et al. (1998). Forest Fires: An Example of Self-Organized Critical Behavior. *Science*, 281(5384), 1840-1842. [DOI](https://doi.org/10.1126/science.281.5384.1840)
+                        ''').classes('text-gray-300')
+
+                ui.label('Authors: Rakesh Rohan Kanhai, Konstantinos Benjamin Vigos, Jsbrand Meeter, Andrew Crossley').classes('text-gray-400 text-sm')
+
         # ---- FOUNDATION tab ----
         with ui.tab_panel(tab_basic).classes('w-full flex justify-center items-center'):
             basic_panel = create_simulation_panel(show_suppress=False)
