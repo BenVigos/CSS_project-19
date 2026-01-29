@@ -63,7 +63,7 @@ def run_parallel_simulations(param_list: list, outdir: Path) -> list:
             params = futures[fut]
             try:
                 res = fut.result()
-                print(f"Done: L={res['L']}, p={res['p']}, f={res['f']}, "
+                print(f"Done: L={res['L']}, p={res['p']}, f={res['f']}, suppress={res['suppress']},"
                       f"fires={res['num_fires']}, mean={res['mean_size']:.2f}, max={res['max_size']}")
                 sim_results.append(res)
             except Exception as e:
@@ -75,7 +75,7 @@ def run_parallel_simulations(param_list: list, outdir: Path) -> list:
 def save_summary(sim_results: list, outdir: Path) -> Path:
     """Save summary CSV with all simulation results."""
     summary_file = outdir / f"summary_{datetime.now().strftime('%Y%m%dT%H%M%SZ')}.csv"
-    keys = ['L', 'p', 'f', 'steps', 'param_id', 'run_id', 'num_fires', 
+    keys = ['L', 'p', 'f', 'steps', 'suppress', 'param_id', 'run_id', 'num_fires',
             'mean_size', 'max_size', 'remaining_trees', 'raw_file', 'perstep_file']
     
     with open(summary_file, 'w', newline='') as fh:

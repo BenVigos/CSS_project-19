@@ -1,6 +1,7 @@
 import numpy as np
+import random as rnd
 
-def burn_step(grid, x, y, L, connectivity=4):
+def burn_step(grid, x, y, L, connectivity=4, suppress = 0):
     """
     Burn the entire connected cluster of trees containing (x, y) using an
     iterative flood-fill (stack). Trees are represented by 1 and emptied to 0.
@@ -14,6 +15,9 @@ def burn_step(grid, x, y, L, connectivity=4):
     Returns the number of trees burned (cluster size). If (x,y) is not a tree
     the function returns 0.
     """
+
+    burnt_trees = set()
+
     # If the starting site is not a tree, nothing to burn
     if grid[x, y] != 1:
         return 0
@@ -27,6 +31,8 @@ def burn_step(grid, x, y, L, connectivity=4):
 
     burned_size = 0
     stack = [(x, y)]
+
+    burnt_trees.add((x, y))
 
     # Iterative flood-fill: pop positions from stack, inspect neighbors
     while stack:
@@ -45,7 +51,14 @@ def burn_step(grid, x, y, L, connectivity=4):
                 # Mark for burning by pushing onto stack. We don't mark it here to 0
                 # to avoid double-counting until popped (but an early mark is fine too).
                 stack.append((nx, ny))
-    return burned_size
+                burnt_trees.add((nx, ny))
+    num_replace = np.min([burned_size, suppress])
+    trees_to_replace = rnd.sample(list(burnt_trees), num_replace)
+
+    for coords in trees_to_replace:
+        grid[coords[0], coords[1]] = 1  # Replant tree
+
+    return burned_size - num_replace
 
 def step(grid, fire_sizes, L, p, f):
     """

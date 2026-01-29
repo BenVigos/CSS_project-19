@@ -40,7 +40,7 @@ def _compute_cluster_sizes(grid, connectivity=4):
     return clusters
 
 
-def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity=4):
+def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity=4, suppress=0):
     """Run simulation and return aggregated fires + final grid + per-step records.
 
     Returns (fire_sizes, grid, records) where records is a list of dicts per step:
@@ -71,15 +71,19 @@ def simulate_drosselschwab_record(L=10, p=0.05, f=0.001, steps=500, connectivity
             # 3. Burning Phase: Burn the whole connected cluster
             for start_pos in strikes:
                 if grid[start_pos[0], start_pos[1]] == 1:
-                    size = burn_step(grid, start_pos[0], start_pos[1], L, connectivity=connectivity)
+                    # cast to plain int to avoid numpy scalar serialization issues
+                    size = int(burn_step(grid, start_pos[0], start_pos[1], L, connectivity=connectivity, suppress=suppress))
                     step_fires.append(size)
                     fire_sizes.append(size)
 
         # After burning, compute cluster sizes of remaining trees
         cluster_sizes = _compute_cluster_sizes(grid, connectivity=connectivity)
 
+        # ensure cluster sizes are plain ints for JSON/CSV serialization
+        cluster_sizes = [int(c) for c in cluster_sizes]
+
         records.append({
-            'step': i,
+            'step': int(i),
             'fires': list(step_fires),
             'cluster_sizes': list(cluster_sizes),
             'mean_density_before': mean_density_before,
