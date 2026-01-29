@@ -10,12 +10,12 @@ def generate_slime_mold_mask(L, ratio, steps=300):
     The function ensures that EXACTLY 'ratio' percent of the board is True.
     """
     # Settings for Physarum (The Intelligent Settings)
-    num_agents = int(L * L * 0.08) # Iets meer agents voor betere verbindingen
+    num_agents = int(L * L * 0.15) # Iets meer agents voor betere verbindingen
     
     # Sensor instellingen (Dit bepaalt de 'intelligentie')
-    sensor_angle = np.pi / 4   # 45 graden kijkhoek
+    sensor_angle = np.pi / 2   # 45 graden kijkhoek
     sensor_dist = 9.0          # Hoe ver kijken ze vooruit?
-    turn_angle = np.pi / 4     # Hoe scherp kunnen ze draaien?
+    turn_angle = np.pi / 2     # Hoe scherp kunnen ze draaien?
     
     # 1. Initialization
     agents_x = np.random.rand(num_agents) * L
@@ -41,7 +41,7 @@ def generate_slime_mold_mask(L, ratio, steps=300):
         # C. Diffuse & Decay (Scherpere settings voor aders)
         # sigma: 0.8 -> 0.6 (Minder blur)
         # decay: 0.95 -> 0.92 (Oude paden verdwijnen sneller)
-        trail_map = gaussian_filter(trail_map, sigma=0.6) * 0.92
+        trail_map = gaussian_filter(trail_map, sigma=0.5) * 0.90
         
         # D. Sense & Rotate (The Advanced Logic)
         
@@ -79,7 +79,7 @@ def generate_slime_mold_mask(L, ratio, steps=300):
         # Als Midden het sterkst is, doen we niks (rechtdoor).
         
         # Altijd een heel klein beetje willekeur toevoegen zodat ze niet vastlopen
-        agents_angle += (np.random.rand(num_agents) - 0.5) * 0.2
+        agents_angle += (np.random.rand(num_agents) - 0.5) * 0.5
 
     # 3. Thresholding
     flattened = trail_map.flatten()
