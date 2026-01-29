@@ -34,8 +34,8 @@ def burn_step(grid, x, y, L, connectivity=4):
         # If this site is not a tree (might have been cleared by earlier pop), skip
         if grid[cx, cy] != 1:
             continue
-        # Burn this tree (set to empty)
-        grid[cx, cy] = 0
+        # Burn this tree (set to fire state, cleared next step)
+        grid[cx, cy] = 2
         burned_size += 1
 
         # Check neighbors
@@ -52,13 +52,16 @@ def step(grid, fire_sizes, L, p, f):
     Run a single step of the simulation.
 
     Parameters
-    - grid: 2D numpy array of ints (0 = empty, 1 = tree)
+    - grid: 2D numpy array of ints (0 = empty, 1 = tree, 2 = fire)
     - fire_sizes: list of fire sizes (appended to in place: one per lightning fire, the cluster size)
     - L: grid linear size (for bounds checking)
     - p: probability of a tree growing
     - f: probability of a tree being struck by lightning
     Returns the number of trees burned (cluster size). If (x,y) is not a tree
     """
+    # 0. Clear previous fires (fire → empty)
+    grid[grid == 2] = 0
+
     # 1. Growth Phase: Empty sites become trees with probability p 
     empty_mask = (grid == 0)
     growth_roll = np.random.random(np.count_nonzero(empty_mask))
