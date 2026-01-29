@@ -1,23 +1,53 @@
 import asyncio
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import BoundaryNorm, ListedColormap
 from nicegui import ui
 
 from simulations.drosselschwab import simulate_drosselschwab_steps
-from config import FIRE_CMAP, FIRE_NORM
+from config import FIRE_CMAP, FIRE_NORM, MAX_STEPS_FOR_TIME_LIMIT, RENDER_INTERVAL
 
 # =========================
-# Scientific plotting setup
+# Dark theme
 # =========================
 
+ui.dark_mode().enable()
+
+ui.add_head_html('''
+<style>
+  .wildfire-app .q-tabs,
+  .wildfire-app .q-tabs .q-tabs__content,
+  .wildfire-app .q-tab-panels,
+  .wildfire-app .q-tab-panels .q-panel {
+    background: transparent !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+</style>
+''')
+
+# =========================
+# Scientific plotting setup (dark)
+# =========================
+
+# Transparent figure/axes so matplotlib graphs match NiceGUI page background
+plt.style.use('dark_background')
 plt.rcParams.update({
     'font.size': 9,
     'axes.titlesize': 9,
     'axes.labelsize': 9,
     'xtick.labelsize': 8,
     'ytick.labelsize': 8,
+    'figure.facecolor': 'none',
+    'axes.facecolor': 'none',
+    'savefig.facecolor': 'none',
+    'savefig.edgecolor': 'none',
+    'axes.edgecolor': '#333',
+    'axes.labelcolor': '#aaa',
+    'xtick.color': '#666',
+    'ytick.color': '#666',
 })
 
 # =========================
@@ -25,145 +55,411 @@ plt.rcParams.update({
 # =========================
 
 def labeled_slider(label, slider, fmt='{:.3g}'):
-    """Slider with right-aligned numeric value (scientific style)."""
-    with ui.row().classes('items-center justify-between'):
-        ui.label(label).classes('text-sm text-gray-600')
+    """Slider with right-aligned numeric value."""
+    with ui.row().classes('items-center justify-between w-full'):
+        ui.label(label).classes('text-sm text-gray-400')
         ui.label().bind_text_from(
             slider,
             'value',
             backward=lambda v: fmt.format(v),
-        )
+        ).classes('text-gray-500 text-sm tabular-nums')
+
+
+def create_simulation_panel(show_suppress=False):
+    """
+    Factory function to create a simulation panel with controls and plots.
+    Returns a dict with all UI elements and state needed to run the simulation.
+    """
+    panel = {}
+    
+    with ui.row().classes('gap-8 items-start justify-center flex-wrap'):
+        # ---- Control panel ----
+        with ui.column().classes('w-72 gap-4'):
+            panel['L'] = ui.slider(min=50, max=500, value=256, step=1)
+            labeled_slider('L', panel['L'], fmt='{:.0f}')
+            ui.label('Grid Size (L×L cells)').classes('text-xs text-gray-500 -mt-2')
+
+            panel['p'] = ui.slider(min=0.0, max=1.0, value=0.01, step=0.01)
+            labeled_slider('p', panel['p'])
+            ui.label('Tree growth probability').classes('text-xs text-gray-500 -mt-2')
+
+            panel['f'] = ui.slider(min=0.0, max=0.1, value=0.001, step=0.001)
+            labeled_slider('f', panel['f'])
+            ui.label('Ignition probability').classes('text-xs text-gray-500 -mt-2')
+
+            if show_suppress:
+                panel['suppress'] = ui.slider(min=0, max=1000, value=500, step=100)
+                labeled_slider('suppress', panel['suppress'], fmt='{:.0f}')
+                ui.label('Trees replanted per fire (suppression)').classes('text-xs text-gray-500 -mt-2')
+            else:
+                panel['suppress'] = None
+
+            panel['max_time_seconds'] = ui.slider(min=5, max=300, value=180, step=5)
+            labeled_slider('Max time (s)', panel['max_time_seconds'], fmt='{:.0f}')
+            ui.label('Maximum run time in seconds').classes('text-xs text-gray-500 -mt-2')
+
+            panel['pause_requested'] = [False]
+            panel['reset_requested'] = [False]
+            panel['paused_state'] = {'grid': None, 'fire_sizes': None, 'step': None}
+
+            with ui.row().classes('gap-2 mt-2'):
+                panel['run_button'] = ui.button('Run', color='orange').classes('min-w-20')
+                panel['pause_button'] = ui.button('Pause', color='deep-orange').classes('min-w-20')
+                panel['pause_button'].disable()
+                panel['reset_button'] = ui.button('Reset', color='grey').classes('min-w-20')
+
+        # ---- Plots (larger, next to controls) ----
+        with ui.row().classes('gap-4 items-start flex-wrap justify-center'):
+            with ui.column().classes('items-center gap-1'):
+                panel['grid_plot'] = ui.pyplot(figsize=(5.5, 4), close=False)
+                with ui.row().classes('items-center gap-4 text-xs text-gray-500'):
+                    ui.label('■').style('color: #1d1d1d; -webkit-text-stroke: 1px #666;')
+                    ui.label('Empty')
+                    ui.label('■').style('color: #1b5e20')
+                    ui.label('Tree')
+                    ui.label('■').style('color: #b71c1c')
+                    ui.label('Fire')
+                    if show_suppress:
+                        ui.label('■').style('color: #1565c0')
+                        ui.label('Suppressed')
+            panel['fire_plot'] = ui.pyplot(figsize=(5.5, 4), close=False)
+
+    # Always use advanced state visualization in the UI
+    panel['advanced_state'] = True
+    return panel
+
 
 # =========================
-# Layout
+# Layout (minimal dark, centered)
 # =========================
 
-ui.label('Drossel–Schwabl Forest Fire Model') \
-    .classes('text-xl font-semibold text-gray-800')
+with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 py-8 wildfire-app'):
+    ui.label('Wildfire Simulation').classes(
+        'text-lg font-medium text-gray-300 tracking-tight'
+    )
 
-with ui.row():
-    # ---- Control panel ----
-    with ui.column().classes('w-72 gap-1'):
-        ui.label('Parameters').classes('text-sm font-semibold text-gray-700')
+    # ---- Mode tabs (fire theme) ----
+    with ui.tabs().classes('w-full justify-center') as mode_tabs:
+        tab_info = ui.tab('INFORMATION').classes('text-gray-300')
+        tab_basic = ui.tab('FOUNDATION').classes('text-gray-300')
+        tab_suppression = ui.tab('SUPPRESSION').classes('text-gray-300')
+        tab_slime = ui.tab('INHOMOGENOUS').classes('text-gray-300')
 
-        L = ui.slider(min=50, max=500, value=50, step=5)
-        labeled_slider('Grid size L', L, fmt='{:.0f}')
+    with ui.tab_panels(mode_tabs, value=tab_info).classes('w-full flex justify-center'):
+        # ---- INFORMATION tab ----
+        with ui.tab_panel(tab_info).classes('w-full h-full flex justify-center items-center'):
+            with ui.column().classes('items-center gap-8'):
+                with ui.grid(columns=2).classes('gap-6'):
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Introduction').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown(r'''
+The **Drossel-Schwabl forest fire model** is a cellular automaton that exhibits self-organized criticality (SOC). 
+The model operates on an $L \\times L$ lattice where each cell can be in one of three states: empty, tree, or burning.
 
-        p = ui.slider(min=0.0, max=1.0, value=0.05, step=0.05)
-        labeled_slider('Tree growth p', p)
+The dynamics are governed by two key parameters:
+- **$p$** — probability that an empty cell grows a tree
+- **$f$** — probability that a tree spontaneously ignites (lightning strike)
 
-        f = ui.slider(min=0.0, max=1.0, value=0.01, step=0.01)
-        labeled_slider('Lightning f', f)
+At each time step:
+1. A burning tree becomes an empty cell
+2. A tree ignites if any neighbor is burning
+3. A tree ignites with probability $f$ (lightning)
+4. An empty cell grows a tree with probability $p$
 
-        steps = ui.slider(min=100, max=5000, value=500, step=100)
-        labeled_slider('Steps', steps, fmt='{:.0f}')
+The model produces a power-law distribution of fire sizes: $P(s) \\sim s^{-\\tau}$, characteristic of critical phenomena.
+                        ''', extras=['latex']).classes('text-gray-300')
 
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Methodology').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+Our simulation implements the Drossel-Schwabl model with the following approach:
 
+1. **Initialization**: Grid cells are randomly populated with trees based on initial density
+2. **Synchronous Updates**: All cells are updated simultaneously each time step using NumPy vectorized operations
+3. **Fire Propagation**: Fires spread to all orthogonally adjacent trees using convolution-based neighbor detection
+4. **Data Collection**: Fire sizes are recorded by counting connected burning regions using flood-fill algorithms
+5. **Statistical Analysis**: Fire size distributions are computed and fitted to power laws to extract the critical exponent $\\tau$
 
-        stop_requested = [False]
+The **suppression model** extends this by replanting trees after fires, simulating human intervention in wildfire management.
+                        ''').classes('text-gray-300')
 
-        with ui.row().classes('gap-2'):
-            run_button = ui.button('Run simulation', color='primary')
-            stop_button = ui.button('Stop simulation', color='error')
-            stop_button.disable()
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Why study wildfires?').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+The **Drossel-Schwab model** helps firefighting move from reactive suppression to predictive strategies. By applying these models to real forests, teams can identify **criticality thresholds** where a single spark could trigger a catastrophic burn.
 
-        def on_stop():
-            stop_requested[0] = True
+The model's **self-organized criticality** applies to any system defined by contagion and connectivity:
 
-        stop_button.on_click(on_stop)
+| Domain | Mechanism |
+| --- | --- |
+| **Epidemiology** | Pathogen spread through social clusters. |
+| **Finance** | Market contagion and systemic risk. |
+| **Infrastructure** | Cascading power grid failures. |
 
-    # ---- Plots ----
-    with ui.row().classes('gap-2 items-start'):
-        grid_plot = ui.pyplot()
-        fire_plot = ui.pyplot()
+Whether it’s a forest or a bank, the core logic holds: once density reaches a certain point, the system, left alone, invariably leads to an "avalanche."                        ''').classes('text-gray-300')
 
-        # State legend
-        with ui.row().classes('items-center gap-3 text-xs text-gray-600'):
-            ui.label('■').style('color: #f0f0f0')
-            ui.label('Empty')
-            ui.label('■').style('color: #1b5e20')
-            ui.label('Tree')
-            #ui.label('■').style('color: #b71c1c')
-            #ui.label('Fire')
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Sources').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+1. Drossel, B., & Schwabl, F. (1992). Self-Organized Critical Forest-Fire Model. *Physical Review Letters*, 69(11), 1629-1632. [DOI](https://doi.org/10.1103/PhysRevLett.69.1629)
+
+2. Karafyllidis, I., & Thanailakis, A. (1997). A Model for Predicting Forest Fire Spreading Using Cellular Automata. *Ecological Modelling*, 99(2-3), 283-297. [DOI](https://doi.org/10.1016/S0304-3800(96)01942-4)
+
+3. Malamud, B. D., et al. (1998). Forest Fires: An Example of Self-Organized Critical Behavior. *Science*, 281(5384), 1840-1842. [DOI](https://doi.org/10.1126/science.281.5384.1840)
+                        ''').classes('text-gray-300')
+
+                ui.label('Authors: Rakesh Rohan Kanhai, Konstantinos Benjamin Vigos, Jsbrand Meeter, Andrew Crossley').classes('text-gray-400 text-sm')
+
+        # ---- FOUNDATION tab ----
+        with ui.tab_panel(tab_basic).classes('w-full flex justify-center items-center'):
+            basic_panel = create_simulation_panel(show_suppress=False)
+
+        # ---- SUPPRESSION tab ----
+        with ui.tab_panel(tab_suppression).classes('w-full flex justify-center items-center'):
+            supp_panel = create_simulation_panel(show_suppress=True)
+
+        # ---- INHOMOGENOUS: empty for now ----
+        with ui.tab_panel(tab_slime).classes('w-full flex justify-center items-center'):
+            pass
 
 # =========================
 # Simulation loop
 # =========================
 
-async def run_and_plot():
-    stop_requested[0] = False
-    run_button.disable()
-    stop_button.enable()
+
+def _init_grid_plot(panel, L_val):
+    """Initialize grid plot artists once. Returns (fig, ax, img)."""
+    with panel['grid_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        img = ax.imshow(
+            np.zeros((L_val, L_val), dtype=np.int8),
+            cmap=FIRE_CMAP,
+            norm=FIRE_NORM,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#666')
+            spine.set_linewidth(1)
+        ax.set_xlabel('')
+        plt.tight_layout(pad=0.2)
+    return fig, ax, img
+
+
+def _init_fire_plot(panel):
+    """Initialize fire-size distribution plot artists once. Returns (fig, ax, line, trendline, no_data_text)."""
+    with panel['fire_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        ax.set_xlabel('Fire size $s$')
+        ax.set_ylabel('$P(s)$')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlim(0.5, 1e4)
+        ax.set_ylim(1e-6, 1e1)
+        line, = ax.loglog([], [], marker='o', linestyle='none', markersize=4, color='#e65100')
+        trendline, = ax.loglog([], [], linestyle='--', linewidth=1.5, color='#888', label='')
+        no_data_text = ax.text(
+            0.5, 0.5, 'No fires observed',
+            ha='center', va='center', transform=ax.transAxes,
+            fontsize=9, color='#b71c1c',
+        )
+        plt.tight_layout(pad=0.5)
+    return fig, ax, line, trendline, no_data_text
+
+
+def _clear_plots(panel):
+    """Clear both plots to empty state (for RESET)."""
+    with panel['grid_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0.5, 0.5, 'No data — Run or reset',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=9, color='#666')
+    with panel['fire_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        ax.set_xlabel('Fire size $s$')
+        ax.set_ylabel('$P(s)$')
+        ax.text(0.5, 0.5, 'No data — Run or reset',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=9, color='#666')
+    plt.tight_layout(pad=0.2)
+
+
+def _update_run_resume_button(panel):
+    if panel['paused_state']['grid'] is not None:
+        panel['run_button'].set_text('Resume')
+    else:
+        panel['run_button'].set_text('Run')
+
+
+async def run_and_plot(panel, resume=False):
+    panel['pause_requested'][0] = False
+    panel['reset_requested'][0] = False
+    panel['run_button'].disable()
+    panel['pause_button'].enable()
+    max_seconds = float(panel['max_time_seconds'].value)
+    start_time = time.monotonic()
+
+    suppress_val = int(panel['suppress'].value) if panel['suppress'] is not None else 0
+    advanced_state = panel.get('advanced_state', False)
+
     try:
-        for grid, fire_sizes, step_i in simulate_drosselschwab_steps(
-            L=int(L.value),
-            p=p.value,
-            f=f.value,
-            steps=int(steps.value),
-        ):
-            # ---- Grid plot ----
-            with grid_plot:
-                plt.clf()
-                plt.imshow(grid, cmap=FIRE_CMAP, norm=FIRE_NORM)
-                plt.xticks([])
-                plt.yticks([])
-                plt.xlabel(
-                    f'L={L.value:.0f}, p={p.value:.3g}, f={f.value:.3g} '
-                    f'(step {step_i})'
-                )
-                plt.tight_layout(pad=0.2)
+        if resume and panel['paused_state']['grid'] is not None:
+            L_val = panel['paused_state']['grid'].shape[0]
+            gen = simulate_drosselschwab_steps(
+                L=L_val,
+                p=panel['p'].value,
+                f=panel['f'].value,
+                steps=MAX_STEPS_FOR_TIME_LIMIT,
+                suppress=suppress_val,
+                advanced_state=advanced_state,
+                initial_grid=panel['paused_state']['grid'],
+                initial_fire_sizes=panel['paused_state']['fire_sizes'],
+                start_step=panel['paused_state']['step'],
+            )
+        else:
+            L_val = int(panel['L'].value)
+            gen = simulate_drosselschwab_steps(
+                L=L_val,
+                p=panel['p'].value,
+                f=panel['f'].value,
+                steps=MAX_STEPS_FOR_TIME_LIMIT,
+                suppress=suppress_val,
+                advanced_state=advanced_state,
+            )
 
-            # ---- Fire-size distribution ----
-            with fire_plot:
-                plt.clf()
-                plt.xlabel('Fire size $s$')
-                plt.ylabel('$P(s)$')
+        grid_fig, grid_ax, grid_img = _init_grid_plot(panel, L_val)
+        fire_fig, fire_ax, fire_line, fire_trendline, fire_no_data_text = _init_fire_plot(panel)
 
-                if not fire_sizes:
-                    plt.text(
-                        0.5, 0.5, 'No fires observed',
-                        ha='center', va='center',
-                        transform=plt.gca().transAxes,
-                        fontsize=9, color='gray',
-                    )
-                    plt.xscale('log')
-                    plt.yscale('log')
-                    plt.xlim(0.5, 1e4)
-                    plt.ylim(0.5, 1e3)
+        last_render_time = 0.0
+        current_grid = None
+        current_fire_sizes = []
+        current_step = 0
+
+        for grid, fire_sizes, step_i in gen:
+            now = time.monotonic()
+            elapsed = now - start_time
+
+            current_grid = grid
+            current_fire_sizes = fire_sizes
+            current_step = step_i
+
+            if elapsed >= max_seconds:
+                break
+
+            if now - last_render_time < RENDER_INTERVAL:
+                if panel['pause_requested'][0]:
+                    break
+                await asyncio.sleep(0)
+                continue
+
+            last_render_time = now
+
+            with panel['grid_plot']:
+                grid_img.set_data(grid)
+                label = f'L={L_val}, p={panel["p"].value:.3g}, f={panel["f"].value:.3g}'
+                if suppress_val > 0:
+                    label += f', suppress={suppress_val}'
+                label += f' (step {step_i})'
+                grid_ax.set_xlabel(label)
+
+            with panel['fire_plot']:
+                # Filter out zero-size fires (fully suppressed)
+                fs = np.asarray([s for s in fire_sizes if s > 0])
+                if len(fs) == 0:
+                    fire_line.set_data([], [])
+                    fire_trendline.set_data([], [])
+                    fire_no_data_text.set_visible(True)
                 else:
-                    fs = np.asarray(fire_sizes)
+                    fire_no_data_text.set_visible(False)
                     min_s = max(1, fs.min())
                     max_s = fs.max()
 
-                    bins = np.logspace(
-                        np.log10(min_s),
-                        np.log10(max_s),
-                        num=20,
-                    )
+                    log_min = np.log(min_s)
+                    log_max = np.log(max_s)
+                    if log_max <= log_min:
+                        log_max = log_min + 1.0
+
+                    bins = np.exp(np.linspace(log_min, log_max, num=20))
                     hist, edges = np.histogram(fs, bins=bins, density=True)
                     centers = np.sqrt(edges[:-1] * edges[1:])
 
                     mask = hist > 0
-                    plt.loglog(
-                        centers[mask],
-                        hist[mask],
-                        marker='o',
-                        linestyle='none',
-                        markersize=4,
-                        color='#424242',
-                    )
+                    fire_line.set_data(centers[mask], hist[mask])
 
-                plt.tight_layout(pad=0.5)
+                    x_fit = centers[mask]
+                    y_fit = hist[mask]
+                    if len(x_fit) >= 2:
+                        slope, intercept = np.polyfit(np.log(x_fit), np.log(y_fit), 1)
+                        trend_x = np.exp(np.linspace(log_min, log_max, 50))
+                        trend_y = np.exp(slope * np.log(trend_x) + intercept)
+                        fire_trendline.set_data(trend_x, trend_y)
+                        fire_trendline.set_label(f'$\\tau$ = {-slope:.2f}')
+                        fire_ax.legend(loc='upper right', fontsize=8, framealpha=0.5)
+                    else:
+                        fire_trendline.set_data([], [])
 
-            await asyncio.sleep(0.01) #delay_ms.value / 1000.0)
-            if stop_requested[0]:
+                    fire_ax.set_xlim(0.5 * min_s, 2 * max_s)
+                    hist_positive = hist[mask]
+                    if len(hist_positive) > 0:
+                        fire_ax.set_ylim(0.5 * hist_positive.min(), 2 * hist_positive.max())
+
+            await asyncio.sleep(0.01)
+
+            if panel['pause_requested'][0]:
                 break
 
+        if panel['pause_requested'][0] and current_grid is not None:
+            panel['paused_state']['grid'] = np.copy(current_grid)
+            panel['paused_state']['fire_sizes'] = list(current_fire_sizes)
+            panel['paused_state']['step'] = current_step
+
     finally:
-        run_button.enable()
-        stop_button.disable()
+        panel['run_button'].enable()
+        panel['pause_button'].disable()
+        _update_run_resume_button(panel)
+        if panel['reset_requested'][0]:
+            panel['reset_requested'][0] = False
+            _clear_plots(panel)
 
 
-run_button.on_click(run_and_plot)
+def wire_panel_callbacks(panel):
+    """Wire up button callbacks for a simulation panel."""
+    def on_pause():
+        panel['pause_requested'][0] = True
 
-ui.run()
+    def on_reset():
+        panel['pause_requested'][0] = True
+        panel['reset_requested'][0] = True
+        panel['paused_state']['grid'] = None
+        panel['paused_state']['fire_sizes'] = None
+        panel['paused_state']['step'] = None
+        _clear_plots(panel)
+        _update_run_resume_button(panel)
+
+    async def on_run_or_resume():
+        await run_and_plot(panel, resume=(panel['paused_state']['grid'] is not None))
+
+    panel['pause_button'].on_click(on_pause)
+    panel['reset_button'].on_click(on_reset)
+    panel['run_button'].on_click(on_run_or_resume)
+
+
+# Wire up both panels
+wire_panel_callbacks(basic_panel)
+wire_panel_callbacks(supp_panel)
+
+ui.run(dark=True)
