@@ -147,10 +147,10 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
     # ---- Mode tabs (fire theme) ----
     with ui.tabs().classes('w-full justify-center') as mode_tabs:
-        tab_info = ui.tab('INFORMATION').classes('text-gray-300')
+        tab_info = ui.tab('INTRODUCTION').classes('text-gray-300')
         tab_basic = ui.tab('FOUNDATION').classes('text-gray-300')
         tab_suppression = ui.tab('SUPPRESSION').classes('text-gray-300')
-        tab_slime = ui.tab('INHOMOGENOUS').classes('text-gray-300')
+        tab_slime = ui.tab('INHOMOGENEITY').classes('text-gray-300')
 
     with ui.tab_panels(mode_tabs, value=tab_info).classes('w-full flex justify-center'):
         # ---- INFORMATION tab ----
@@ -163,7 +163,7 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
                     with ui.card().classes('bg-transparent shadow-none'):
                         ui.label(METHODOLOGY_TITLE).classes('text-lg font-semibold text-white mb-2')
-                        ui.markdown(METHODOLOGY_CONTENT).classes('text-gray-300')
+                        ui.markdown(METHODOLOGY_CONTENT, extras=['latex']).classes('text-gray-300')
 
                     with ui.card().classes('bg-transparent shadow-none'):
                         ui.label(APPLICATIONS_TITLE).classes('text-lg font-semibold text-white mb-2')
@@ -171,7 +171,7 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 
                     with ui.card().classes('bg-transparent shadow-none'):
                         ui.label(SOURCES_TITLE).classes('text-lg font-semibold text-white mb-2')
-                        ui.markdown(SOURCES_CONTENT).classes('text-gray-300')
+                        ui.markdown(SOURCES_CONTENT, extras=['latex']).classes('text-gray-300')
 
                 ui.label(AUTHORS).classes('text-gray-400 text-sm')
 
