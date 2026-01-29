@@ -104,16 +104,28 @@ def simulate_drosselschwab(L=10, p=0.05, f=0.001, steps=500):
     return fire_sizes, grid
 
 
-def simulate_drosselschwab_steps(L=10, p=0.05, f=0.001, steps=500):
+def simulate_drosselschwab_steps(
+    L=10, p=0.05, f=0.001, steps=500, suppress=0, advanced_state=False,
+    initial_grid=None, initial_fire_sizes=None, start_step=0,
+):
     """Yield (grid, fire_sizes, step_index) after each simulation step for live UI updates.
 
     fire_sizes is a single list for the whole run; step() appends to it in place
     on each lightning strike (one entry per fire = cluster size). It therefore
     grows across steps. Each yield returns a snapshot list(fire_sizes).
-    """
-    grid = np.zeros((L, L), dtype=np.int8)
-    fire_sizes = []
 
-    for i in range(steps):
-        step(grid, fire_sizes, L, p, f)
+    If initial_grid and initial_fire_sizes are provided, continue from that state
+    for steps start_step+1 .. steps (start_step is the step index already reached).
+    """
+    if initial_grid is not None and initial_fire_sizes is not None:
+        grid = np.array(initial_grid, dtype=np.int8, copy=True)
+        fire_sizes = list(initial_fire_sizes)
+        step_range = range(start_step, steps)
+    else:
+        grid = np.zeros((L, L), dtype=np.int8)
+        fire_sizes = []
+        step_range = range(steps)
+
+    for i in step_range:
+        step(grid, fire_sizes, L, p, f, suppress=suppress, advanced_state=advanced_state)
         yield np.copy(grid), list(fire_sizes), i + 1
