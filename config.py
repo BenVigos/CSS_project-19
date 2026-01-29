@@ -7,5 +7,14 @@ FIRE_CMAP = ListedColormap([
     '#1565c0',  # 3: suppressed (blue)
 ])
 FIRE_NORM = BoundaryNorm([0, 1, 2, 3, 4], FIRE_CMAP.N)
+
+INH_CMAP = ListedColormap([
+    '#1d1d1d',  # 0: empty
+    '#1b5e20',  # 1: pine (dark green)
+    '#4caf50',  # 2: oak (light green)
+    '#b71c1c',  # 3: fire (red)
+])
+INH_NORM = BoundaryNorm([0, 1, 2, 3, 4], INH_CMAP.N)
+
 MAX_STEPS_FOR_TIME_LIMIT = 50_000_000
 RENDER_INTERVAL = 0.05
