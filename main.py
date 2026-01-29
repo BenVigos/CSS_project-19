@@ -164,7 +164,7 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
                     with ui.column().classes('items-center gap-1'):
                         grid_plot = ui.pyplot(figsize=(5.5, 4), close=False)
                         with ui.row().classes('items-center gap-4 text-xs text-gray-500'):
-                            ui.label('■').style('color: #4a4a4a')
+                            ui.label('■').style('color: #1d1d1d; -webkit-text-stroke: 1px #666;')
                             ui.label('Empty')
                             ui.label('■').style('color: #2d5a2d')
                             ui.label('Tree')
@@ -200,13 +200,17 @@ def _init_grid_plot(L_val):
         )
         ax.set_xticks([])
         ax.set_yticks([])
+        # Grey border around the grid
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#666')
+            spine.set_linewidth(1)
         ax.set_xlabel('')  # Placeholder, updated in loop
         plt.tight_layout(pad=0.2)
     return fig, ax, img
 
 
 def _init_fire_plot():
-    """Initialize fire-size distribution plot artists once. Returns (fig, ax, line, no_data_text)."""
+    """Initialize fire-size distribution plot artists once. Returns (fig, ax, line, trendline, no_data_text)."""
     with fire_plot:
         plt.clf()
         fig, ax = plt.gcf(), plt.gca()
@@ -226,6 +230,14 @@ def _init_fire_plot():
             markersize=4,
             color='#e65100',
         )
+        # Trendline (power-law fit)
+        trendline, = ax.loglog(
+            [], [],
+            linestyle='--',
+            linewidth=1.5,
+            color='#888',
+            label='',
+        )
         # "No fires" text, initially visible
         no_data_text = ax.text(
             0.5, 0.5, 'No fires observed',
@@ -234,11 +246,12 @@ def _init_fire_plot():
             fontsize=9, color='#b71c1c',
         )
         plt.tight_layout(pad=0.5)
-    return fig, ax, line, no_data_text
+    return fig, ax, line, trendline, no_data_text
 
 
 async def run_and_plot(resume=False):
     pause_requested[0] = False
+    reset_requested[0] = False
     run_button.disable()
     pause_button.enable()
     max_seconds = float(max_time_seconds.value)
@@ -267,7 +280,7 @@ async def run_and_plot(resume=False):
 
         # Initialize plot artists once before the loop
         grid_fig, grid_ax, grid_img = _init_grid_plot(L_val)
-        fire_fig, fire_ax, fire_line, fire_no_data_text = _init_fire_plot()
+        fire_fig, fire_ax, fire_line, fire_trendline, fire_no_data_text = _init_fire_plot()
 
         last_render_time = 0.0
         current_grid = None
@@ -308,6 +321,7 @@ async def run_and_plot(resume=False):
             with fire_plot:
                 if not fire_sizes:
                     fire_line.set_data([], [])
+                    fire_trendline.set_data([], [])
                     fire_no_data_text.set_visible(True)
                 else:
                     fire_no_data_text.set_visible(False)
@@ -326,6 +340,20 @@ async def run_and_plot(resume=False):
 
                     mask = hist > 0
                     fire_line.set_data(centers[mask], hist[mask])
+
+                    # Fit power-law trendline: P(s) ~ s^(-τ)
+                    x_fit = centers[mask]
+                    y_fit = hist[mask]
+                    if len(x_fit) >= 2:
+                        # Linear fit in log-log space
+                        slope, intercept = np.polyfit(np.log10(x_fit), np.log10(y_fit), 1)
+                        trend_x = np.logspace(log_min, log_max, 50)
+                        trend_y = 10 ** (slope * np.log10(trend_x) + intercept)
+                        fire_trendline.set_data(trend_x, trend_y)
+                        fire_trendline.set_label(f'$\\tau$ = {-slope:.2f}')
+                        fire_ax.legend(loc='upper right', fontsize=8, framealpha=0.5)
+                    else:
+                        fire_trendline.set_data([], [])
 
                     # Update axis limits to fit data
                     fire_ax.set_xlim(0.5 * min_s, 2 * max_s)

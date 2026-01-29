@@ -1,7 +1,7 @@
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
 FIRE_CMAP = ListedColormap([
-    '#f0f0f0',  # empty
+    '#1d1d1d',  # empty (matches dark background)
     '#1b5e20',  # tree
     '#b71c1c',  # fire
 ])
