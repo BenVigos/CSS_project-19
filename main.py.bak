@@ -169,11 +169,25 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
                         ui.label(APPLICATIONS_TITLE).classes('text-lg font-semibold text-white mb-2')
                         ui.markdown(APPLICATIONS_CONTENT).classes('text-gray-300')
 
-                    with ui.card().classes('bg-transparent shadow-none'):
-                        ui.label(SOURCES_TITLE).classes('text-lg font-semibold text-white mb-2')
-                        ui.markdown(SOURCES_CONTENT).classes('text-gray-300')
+| Domain | Mechanism |
+| --- | --- |
+| **Epidemiology** | Pathogen spread through social clusters. |
+| **Finance** | Market contagion and systemic risk. |
+| **Infrastructure** | Cascading power grid failures. |
 
-                ui.label(AUTHORS).classes('text-gray-400 text-sm')
+Whether it’s a forest or a bank, the core logic holds: once density reaches a certain point, the system, left alone, invariably leads to an "avalanche."                        ''').classes('text-gray-300')
+
+                    with ui.card().classes('bg-transparent shadow-none'):
+                        ui.label('Sources').classes('text-lg font-semibold text-white mb-2')
+                        ui.markdown('''
+1. Drossel, B., & Schwabl, F. (1992). Self-Organized Critical Forest-Fire Model. *Physical Review Letters*, 69(11), 1629-1632. [DOI](https://doi.org/10.1103/PhysRevLett.69.1629)
+
+2. Karafyllidis, I., & Thanailakis, A. (1997). A Model for Predicting Forest Fire Spreading Using Cellular Automata. *Ecological Modelling*, 99(2-3), 283-297. [DOI](https://doi.org/10.1016/S0304-3800(96)01942-4)
+
+3. Malamud, B. D., et al. (1998). Forest Fires: An Example of Self-Organized Critical Behavior. *Science*, 281(5384), 1840-1842. [DOI](https://doi.org/10.1126/science.281.5384.1840)
+                        ''').classes('text-gray-300')
+
+                ui.label('Authors: Rakesh Rohan Kanhai, Konstantinos Benjamin Vigos, Jsbrand Meeter, Andrew Crossley').classes('text-gray-400 text-sm')
 
         # ---- FOUNDATION tab ----
         with ui.tab_panel(tab_basic).classes('w-full flex justify-center items-center'):
