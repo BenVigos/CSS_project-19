@@ -105,7 +105,7 @@ def simulate_drosselschwab(L=10, p=0.05, f=0.001, steps=500):
 
 
 def simulate_drosselschwab_steps(
-    L=10, p=0.05, f=0.001, steps=500,
+    L=10, p=0.05, f=0.001, steps=500, suppress=0, advanced_state=False,
     initial_grid=None, initial_fire_sizes=None, start_step=0,
 ):
     """Yield (grid, fire_sizes, step_index) after each simulation step for live UI updates.
@@ -127,5 +127,5 @@ def simulate_drosselschwab_steps(
         step_range = range(steps)
 
     for i in step_range:
-        step(grid, fire_sizes, L, p, f)
+        step(grid, fire_sizes, L, p, f, suppress=suppress, advanced_state=advanced_state)
         yield np.copy(grid), list(fire_sizes), i + 1

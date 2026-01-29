@@ -66,6 +66,71 @@ def labeled_slider(label, slider, fmt='{:.3g}'):
             backward=lambda v: fmt.format(v),
         ).classes('text-gray-500 text-sm tabular-nums')
 
+
+def create_simulation_panel(show_suppress=False):
+    """
+    Factory function to create a simulation panel with controls and plots.
+    Returns a dict with all UI elements and state needed to run the simulation.
+    """
+    panel = {}
+    
+    with ui.row().classes('gap-8 items-start justify-center flex-wrap'):
+        # ---- Control panel ----
+        with ui.column().classes('w-72 gap-4'):
+            panel['L'] = ui.slider(min=50, max=500, value=256, step=1)
+            labeled_slider('L', panel['L'], fmt='{:.0f}')
+            ui.label('Grid Size (L×L cells)').classes('text-xs text-gray-500 -mt-2')
+
+            panel['p'] = ui.slider(min=0.0, max=1.0, value=0.01, step=0.01)
+            labeled_slider('p', panel['p'])
+            ui.label('Tree growth probability per empty cell per step').classes('text-xs text-gray-500 -mt-2')
+
+            panel['f'] = ui.slider(min=0.0, max=0.1, value=0.001, step=0.001)
+            labeled_slider('f', panel['f'])
+            ui.label('Ignition probability per step').classes('text-xs text-gray-500 -mt-2')
+
+            if show_suppress:
+                panel['suppress'] = ui.slider(min=0, max=1000, value=500, step=100)
+                labeled_slider('suppress', panel['suppress'], fmt='{:.0f}')
+                ui.label('Trees replanted per fire (suppression)').classes('text-xs text-gray-500 -mt-2')
+            else:
+                panel['suppress'] = None
+
+            panel['max_time_seconds'] = ui.slider(min=5, max=300, value=180, step=5)
+            labeled_slider('Max time (s)', panel['max_time_seconds'], fmt='{:.0f}')
+            ui.label('Maximum run time in seconds').classes('text-xs text-gray-500 -mt-2')
+
+            panel['pause_requested'] = [False]
+            panel['reset_requested'] = [False]
+            panel['paused_state'] = {'grid': None, 'fire_sizes': None, 'step': None}
+
+            with ui.row().classes('gap-2 mt-2'):
+                panel['run_button'] = ui.button('Run', color='orange').classes('min-w-20')
+                panel['pause_button'] = ui.button('Pause', color='deep-orange').classes('min-w-20')
+                panel['pause_button'].disable()
+                panel['reset_button'] = ui.button('Reset', color='grey').classes('min-w-20')
+
+        # ---- Plots (larger, next to controls) ----
+        with ui.row().classes('gap-4 items-start flex-wrap justify-center'):
+            with ui.column().classes('items-center gap-1'):
+                panel['grid_plot'] = ui.pyplot(figsize=(5.5, 4), close=False)
+                with ui.row().classes('items-center gap-4 text-xs text-gray-500'):
+                    ui.label('■').style('color: #1d1d1d; -webkit-text-stroke: 1px #666;')
+                    ui.label('Empty')
+                    ui.label('■').style('color: #1b5e20')
+                    ui.label('Tree')
+                    ui.label('■').style('color: #b71c1c')
+                    ui.label('Fire')
+                    if show_suppress:
+                        ui.label('■').style('color: #1565c0')
+                        ui.label('Suppressed')
+            panel['fire_plot'] = ui.pyplot(figsize=(5.5, 4), close=False)
+
+    # Always use advanced state visualization in the UI
+    panel['advanced_state'] = True
+    return panel
+
+
 # =========================
 # Layout (minimal dark, centered)
 # =========================
@@ -82,101 +147,15 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
         tab_slime = ui.tab('INHOMOGENOUS').classes('text-gray-300')
 
     with ui.tab_panels(mode_tabs, value=tab_basic).classes('w-full flex justify-center'):
-        # ---- BASIC: current configuration ----
+        # ---- FOUNDATION tab ----
         with ui.tab_panel(tab_basic).classes('w-full flex justify-center items-center'):
-            with ui.row().classes('gap-8 items-start justify-center flex-wrap'):
-                # ---- Control panel ----
-                with ui.column().classes('w-72 gap-4'):
-                    L = ui.slider(min=50, max=500, value=256, step=1)
-                    labeled_slider('L', L, fmt='{:.0f}')
-                    ui.label('Grid Size (L×L cells)').classes('text-xs text-gray-500 -mt-2')
+            basic_panel = create_simulation_panel(show_suppress=False)
 
-                    p = ui.slider(min=0.0, max=1.0, value=0.01, step=0.01)
-                    labeled_slider('p', p)
-                    ui.label('Tree growth probability per empty cell per step').classes('text-xs text-gray-500 -mt-2')
-
-                    f = ui.slider(min=0.0, max=0.1, value=0.001, step=0.001)
-                    labeled_slider('f', f)
-                    ui.label('Ignition probability per step').classes('text-xs text-gray-500 -mt-2')
-
-                    max_time_seconds = ui.slider(min=5, max=300, value=180, step=5)
-                    labeled_slider('Max time (s)', max_time_seconds, fmt='{:.0f}')
-                    ui.label('Maximum run time in seconds').classes('text-xs text-gray-500 -mt-2')
-
-                    pause_requested = [False]
-                    reset_requested = [False]
-                    # Saved when simulation is paused: grid, fire_sizes, step index
-                    paused_state = {'grid': None, 'fire_sizes': None, 'step': None}
-
-                    def clear_plots():
-                        """Clear both plots to empty state (for RESET)."""
-                        with grid_plot:
-                            plt.clf()
-                            fig, ax = plt.gcf(), plt.gca()
-                            fig.patch.set_facecolor('none')
-                            ax.patch.set_facecolor('none')
-                            ax.set_xticks([])
-                            ax.set_yticks([])
-                            ax.text(0.5, 0.5, 'No data — Run or reset',
-                                    ha='center', va='center', transform=ax.transAxes,
-                                    fontsize=9, color='#666')
-                        with fire_plot:
-                            plt.clf()
-                            fig, ax = plt.gcf(), plt.gca()
-                            fig.patch.set_facecolor('none')
-                            ax.patch.set_facecolor('none')
-                            ax.set_xlabel('Fire size $s$')
-                            ax.set_ylabel('$P(s)$')
-                            ax.text(0.5, 0.5, 'No data — Run or reset',
-                                    ha='center', va='center', transform=ax.transAxes,
-                                    fontsize=9, color='#666')
-                        plt.tight_layout(pad=0.2)
-
-                    def update_run_resume_button():
-                        if paused_state['grid'] is not None:
-                            run_button.set_text('Resume')
-                        else:
-                            run_button.set_text('Run')
-
-                    with ui.row().classes('gap-2 mt-2'):
-                        run_button = ui.button('Run', color='orange').classes('min-w-20')
-                        pause_button = ui.button('Pause', color='deep-orange').classes('min-w-20')
-                        pause_button.disable()
-                        reset_button = ui.button('Reset', color='grey').classes('min-w-20')
-
-                    def on_pause():
-                        pause_requested[0] = True
-
-                    def on_reset():
-                        pause_requested[0] = True  # stop run if active
-                        reset_requested[0] = True  # clear plots after run stops
-                        paused_state['grid'] = None
-                        paused_state['fire_sizes'] = None
-                        paused_state['step'] = None
-                        clear_plots()  # clear immediately if not running
-                        update_run_resume_button()
-
-                    pause_button.on_click(on_pause)
-                    reset_button.on_click(on_reset)
-
-                # ---- Plots (larger, next to controls) ----
-                with ui.row().classes('gap-4 items-start flex-wrap justify-center'):
-                    with ui.column().classes('items-center gap-1'):
-                        grid_plot = ui.pyplot(figsize=(5.5, 4), close=False)
-                        with ui.row().classes('items-center gap-4 text-xs text-gray-500'):
-                            ui.label('■').style('color: #1d1d1d; -webkit-text-stroke: 1px #666;')
-                            ui.label('Empty')
-                            ui.label('■').style('color: #2d5a2d')
-                            ui.label('Tree')
-                            ui.label('■').style('color: #5a2d2d')
-                            ui.label('Fire')
-                    fire_plot = ui.pyplot(figsize=(5.5, 4), close=False)
-
-        # ---- SUPPRESSION: empty for now ----
+        # ---- SUPPRESSION tab ----
         with ui.tab_panel(tab_suppression).classes('w-full flex justify-center items-center'):
-            pass
+            supp_panel = create_simulation_panel(show_suppress=True)
 
-        # ---- SLIME: empty for now ----
+        # ---- INHOMOGENOUS: empty for now ----
         with ui.tab_panel(tab_slime).classes('w-full flex justify-center items-center'):
             pass
 
@@ -185,14 +164,13 @@ with ui.column().classes('w-full min-h-screen items-center justify-center gap-8 
 # =========================
 
 
-def _init_grid_plot(L_val):
-    """Initialize grid plot artists once. Returns (fig, ax, img, xlabel_text)."""
-    with grid_plot:
+def _init_grid_plot(panel, L_val):
+    """Initialize grid plot artists once. Returns (fig, ax, img)."""
+    with panel['grid_plot']:
         plt.clf()
         fig, ax = plt.gcf(), plt.gca()
         fig.patch.set_facecolor('none')
         ax.patch.set_facecolor('none')
-        # Create imshow with empty grid; we'll update data later
         img = ax.imshow(
             np.zeros((L_val, L_val), dtype=np.int8),
             cmap=FIRE_CMAP,
@@ -200,18 +178,17 @@ def _init_grid_plot(L_val):
         )
         ax.set_xticks([])
         ax.set_yticks([])
-        # Grey border around the grid
         for spine in ax.spines.values():
             spine.set_edgecolor('#666')
             spine.set_linewidth(1)
-        ax.set_xlabel('')  # Placeholder, updated in loop
+        ax.set_xlabel('')
         plt.tight_layout(pad=0.2)
     return fig, ax, img
 
 
-def _init_fire_plot():
+def _init_fire_plot(panel):
     """Initialize fire-size distribution plot artists once. Returns (fig, ax, line, trendline, no_data_text)."""
-    with fire_plot:
+    with panel['fire_plot']:
         plt.clf()
         fig, ax = plt.gcf(), plt.gca()
         fig.patch.set_facecolor('none')
@@ -222,65 +199,87 @@ def _init_fire_plot():
         ax.set_yscale('log')
         ax.set_xlim(0.5, 1e4)
         ax.set_ylim(1e-6, 1e1)
-        # Create empty line; we'll update data later
-        line, = ax.loglog(
-            [], [],
-            marker='o',
-            linestyle='none',
-            markersize=4,
-            color='#e65100',
-        )
-        # Trendline (power-law fit)
-        trendline, = ax.loglog(
-            [], [],
-            linestyle='--',
-            linewidth=1.5,
-            color='#888',
-            label='',
-        )
-        # "No fires" text, initially visible
+        line, = ax.loglog([], [], marker='o', linestyle='none', markersize=4, color='#e65100')
+        trendline, = ax.loglog([], [], linestyle='--', linewidth=1.5, color='#888', label='')
         no_data_text = ax.text(
             0.5, 0.5, 'No fires observed',
-            ha='center', va='center',
-            transform=ax.transAxes,
+            ha='center', va='center', transform=ax.transAxes,
             fontsize=9, color='#b71c1c',
         )
         plt.tight_layout(pad=0.5)
     return fig, ax, line, trendline, no_data_text
 
 
-async def run_and_plot(resume=False):
-    pause_requested[0] = False
-    reset_requested[0] = False
-    run_button.disable()
-    pause_button.enable()
-    max_seconds = float(max_time_seconds.value)
+def _clear_plots(panel):
+    """Clear both plots to empty state (for RESET)."""
+    with panel['grid_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0.5, 0.5, 'No data — Run or reset',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=9, color='#666')
+    with panel['fire_plot']:
+        plt.clf()
+        fig, ax = plt.gcf(), plt.gca()
+        fig.patch.set_facecolor('none')
+        ax.patch.set_facecolor('none')
+        ax.set_xlabel('Fire size $s$')
+        ax.set_ylabel('$P(s)$')
+        ax.text(0.5, 0.5, 'No data — Run or reset',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=9, color='#666')
+    plt.tight_layout(pad=0.2)
+
+
+def _update_run_resume_button(panel):
+    if panel['paused_state']['grid'] is not None:
+        panel['run_button'].set_text('Resume')
+    else:
+        panel['run_button'].set_text('Run')
+
+
+async def run_and_plot(panel, resume=False):
+    panel['pause_requested'][0] = False
+    panel['reset_requested'][0] = False
+    panel['run_button'].disable()
+    panel['pause_button'].enable()
+    max_seconds = float(panel['max_time_seconds'].value)
     start_time = time.monotonic()
 
+    suppress_val = int(panel['suppress'].value) if panel['suppress'] is not None else 0
+    advanced_state = panel.get('advanced_state', False)
+
     try:
-        if resume and paused_state['grid'] is not None:
-            L_val = paused_state['grid'].shape[0]
+        if resume and panel['paused_state']['grid'] is not None:
+            L_val = panel['paused_state']['grid'].shape[0]
             gen = simulate_drosselschwab_steps(
                 L=L_val,
-                p=p.value,
-                f=f.value,
+                p=panel['p'].value,
+                f=panel['f'].value,
                 steps=MAX_STEPS_FOR_TIME_LIMIT,
-                initial_grid=paused_state['grid'],
-                initial_fire_sizes=paused_state['fire_sizes'],
-                start_step=paused_state['step'],
+                suppress=suppress_val,
+                advanced_state=advanced_state,
+                initial_grid=panel['paused_state']['grid'],
+                initial_fire_sizes=panel['paused_state']['fire_sizes'],
+                start_step=panel['paused_state']['step'],
             )
         else:
-            L_val = int(L.value)
+            L_val = int(panel['L'].value)
             gen = simulate_drosselschwab_steps(
                 L=L_val,
-                p=p.value,
-                f=f.value,
+                p=panel['p'].value,
+                f=panel['f'].value,
                 steps=MAX_STEPS_FOR_TIME_LIMIT,
+                suppress=suppress_val,
+                advanced_state=advanced_state,
             )
 
-        # Initialize plot artists once before the loop
-        grid_fig, grid_ax, grid_img = _init_grid_plot(L_val)
-        fire_fig, fire_ax, fire_line, fire_trendline, fire_no_data_text = _init_fire_plot()
+        grid_fig, grid_ax, grid_img = _init_grid_plot(panel, L_val)
+        fire_fig, fire_ax, fire_line, fire_trendline, fire_no_data_text = _init_fire_plot(panel)
 
         last_render_time = 0.0
         current_grid = None
@@ -291,7 +290,6 @@ async def run_and_plot(resume=False):
             now = time.monotonic()
             elapsed = now - start_time
 
-            # Store current state for pause/final render
             current_grid = grid
             current_fire_sizes = fire_sizes
             current_step = step_i
@@ -299,96 +297,106 @@ async def run_and_plot(resume=False):
             if elapsed >= max_seconds:
                 break
 
-            # Throttle rendering to ~20 FPS
             if now - last_render_time < RENDER_INTERVAL:
-                # Check pause without rendering
-                if pause_requested[0]:
+                if panel['pause_requested'][0]:
                     break
-                await asyncio.sleep(0)  # Yield to event loop
+                await asyncio.sleep(0)
                 continue
 
             last_render_time = now
 
-            # ---- Update grid plot (reuse artist) ----
-            with grid_plot:
+            with panel['grid_plot']:
                 grid_img.set_data(grid)
-                grid_ax.set_xlabel(
-                    f'L={L_val}, p={p.value:.3g}, f={f.value:.3g} '
-                    f'(step {step_i})'
-                )
+                label = f'L={L_val}, p={panel["p"].value:.3g}, f={panel["f"].value:.3g}'
+                if suppress_val > 0:
+                    label += f', suppress={suppress_val}'
+                label += f' (step {step_i})'
+                grid_ax.set_xlabel(label)
 
-            # ---- Update fire-size distribution (reuse artist) ----
-            with fire_plot:
-                if not fire_sizes:
+            with panel['fire_plot']:
+                # Filter out zero-size fires (fully suppressed)
+                fs = np.asarray([s for s in fire_sizes if s > 0])
+                if len(fs) == 0:
                     fire_line.set_data([], [])
                     fire_trendline.set_data([], [])
                     fire_no_data_text.set_visible(True)
                 else:
                     fire_no_data_text.set_visible(False)
-                    fs = np.asarray(fire_sizes)
                     min_s = max(1, fs.min())
                     max_s = fs.max()
 
-                    log_min = np.log10(min_s)
-                    log_max = np.log10(max_s)
+                    log_min = np.log(min_s)
+                    log_max = np.log(max_s)
                     if log_max <= log_min:
                         log_max = log_min + 1.0
 
-                    bins = np.logspace(log_min, log_max, num=20)
+                    bins = np.exp(np.linspace(log_min, log_max, num=20))
                     hist, edges = np.histogram(fs, bins=bins, density=True)
                     centers = np.sqrt(edges[:-1] * edges[1:])
 
                     mask = hist > 0
                     fire_line.set_data(centers[mask], hist[mask])
 
-                    # Fit power-law trendline: P(s) ~ s^(-τ)
                     x_fit = centers[mask]
                     y_fit = hist[mask]
                     if len(x_fit) >= 2:
-                        # Linear fit in log-log space
-                        slope, intercept = np.polyfit(np.log10(x_fit), np.log10(y_fit), 1)
-                        trend_x = np.logspace(log_min, log_max, 50)
-                        trend_y = 10 ** (slope * np.log10(trend_x) + intercept)
+                        slope, intercept = np.polyfit(np.log(x_fit), np.log(y_fit), 1)
+                        trend_x = np.exp(np.linspace(log_min, log_max, 50))
+                        trend_y = np.exp(slope * np.log(trend_x) + intercept)
                         fire_trendline.set_data(trend_x, trend_y)
                         fire_trendline.set_label(f'$\\tau$ = {-slope:.2f}')
                         fire_ax.legend(loc='upper right', fontsize=8, framealpha=0.5)
                     else:
                         fire_trendline.set_data([], [])
 
-                    # Update axis limits to fit data
                     fire_ax.set_xlim(0.5 * min_s, 2 * max_s)
                     hist_positive = hist[mask]
                     if len(hist_positive) > 0:
-                        fire_ax.set_ylim(
-                            0.5 * hist_positive.min(),
-                            2 * hist_positive.max()
-                        )
+                        fire_ax.set_ylim(0.5 * hist_positive.min(), 2 * hist_positive.max())
 
-            # Give UI time to render
             await asyncio.sleep(0.01)
 
-            if pause_requested[0]:
+            if panel['pause_requested'][0]:
                 break
 
-        # Save state if paused
-        if pause_requested[0] and current_grid is not None:
-            paused_state['grid'] = np.copy(current_grid)
-            paused_state['fire_sizes'] = list(current_fire_sizes)
-            paused_state['step'] = current_step
+        if panel['pause_requested'][0] and current_grid is not None:
+            panel['paused_state']['grid'] = np.copy(current_grid)
+            panel['paused_state']['fire_sizes'] = list(current_fire_sizes)
+            panel['paused_state']['step'] = current_step
 
     finally:
-        run_button.enable()
-        pause_button.disable()
-        update_run_resume_button()
-        if reset_requested[0]:
-            reset_requested[0] = False
-            clear_plots()
+        panel['run_button'].enable()
+        panel['pause_button'].disable()
+        _update_run_resume_button(panel)
+        if panel['reset_requested'][0]:
+            panel['reset_requested'][0] = False
+            _clear_plots(panel)
 
 
-async def on_run_or_resume():
-    await run_and_plot(resume=(paused_state['grid'] is not None))
+def wire_panel_callbacks(panel):
+    """Wire up button callbacks for a simulation panel."""
+    def on_pause():
+        panel['pause_requested'][0] = True
+
+    def on_reset():
+        panel['pause_requested'][0] = True
+        panel['reset_requested'][0] = True
+        panel['paused_state']['grid'] = None
+        panel['paused_state']['fire_sizes'] = None
+        panel['paused_state']['step'] = None
+        _clear_plots(panel)
+        _update_run_resume_button(panel)
+
+    async def on_run_or_resume():
+        await run_and_plot(panel, resume=(panel['paused_state']['grid'] is not None))
+
+    panel['pause_button'].on_click(on_pause)
+    panel['reset_button'].on_click(on_reset)
+    panel['run_button'].on_click(on_run_or_resume)
 
 
-run_button.on_click(on_run_or_resume)
+# Wire up both panels
+wire_panel_callbacks(basic_panel)
+wire_panel_callbacks(supp_panel)
 
 ui.run(dark=True)
