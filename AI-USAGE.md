@@ -6,6 +6,7 @@
 
 **Andrew**
 - Used pre-existing NiceGUI templates, fed to AI, as the basis or the app server
+- Had AI generate the base structure for the README.md
 - All app server css was written by AI
 - drosselschwab code all written by hand so as to make sure to carefully match implementation plan, had cursor pass over and write comments and document to share with team.
 - All github/architecture related tasks handled without AI
