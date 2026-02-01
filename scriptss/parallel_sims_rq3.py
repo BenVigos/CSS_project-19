@@ -66,7 +66,7 @@ def worker(outdir, params):
 
     # Save per-step records to CSV
     timestamp = datetime.now().strftime('%Y%m%dT%H%M%SZ')
-    # Bestandsnaam iets aangepast zodat je ziet dat het oak_ratio bevat
+    # Bestandsnaam iets aangepast zodat je ziet dat het oak_ratio bevat (GenAI was used here)
     perstep_fname = outdir / f"perstep_param{param_id}_oak{oak_ratio}_id{run_id}_{timestamp}.csv"
     
     try:
@@ -153,8 +153,6 @@ def worker2(outdir, params):
     summary['raw_file'] = str(raw_fname)
     return summary
 
-# De main functie is handig als je het script los wilt draaien, 
-# maar voor jouw notebook gebruik je alleen de 'worker' hierboven.
 def main():
     print("Dit script is bedoeld om vanuit een Notebook aangeroepen te worden via de 'worker' functie.")
 

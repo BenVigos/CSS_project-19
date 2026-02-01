@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage import label
 
-# --- CONSTANTS ---
+#Variable definitions
 EMPTY = 0
 PINE = 1
 OAK = 2

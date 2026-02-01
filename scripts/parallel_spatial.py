@@ -11,7 +11,7 @@ def worker2(outdir, params):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    # --- HIER IS HET VERSCHIL: Importeer de SPATIAL simulatie ---
+    
     from simulations.spatial import simulate_spatial_record
 
     # Parameters uitlezen
