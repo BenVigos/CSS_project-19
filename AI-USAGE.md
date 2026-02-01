@@ -5,8 +5,16 @@
 - AI used to explain project structure and compare the work done by other team members quickly so as to understand code without having to need extensive coding sync during the "hackathon" periods of the project.
 
 **Andrew**
+- Used pre-existing NiceGUI templates, fed to AI, as the basis or the app server
+- All app server css was written by AI
+- drosselschwab code all written by hand so as to make sure to carefully match implementation plan, had cursor pass over and write comments and document to share with team.
+- All github/architecture related tasks handled without AI
+- Had AI optimise the matplotlib update strategy on the nicegui server for performance optimization
 
 **Ijsbrand**
+- Had AI convert pseudo-code algorithms (rq2/rq3 .py) into numpy functions, adhering to meta-patterns predefined by other members
+- Used copilot for matplotlib plot design and styling
+- Repassed over code written with AI leveraged to document and highlight bottlenecks which then were fixed/ignored based on severity
 
 **Ben**
 
