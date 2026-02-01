@@ -47,7 +47,8 @@ Detailed analysis and visualizations for each phase can be found in the followin
 ├── notebooks/           # Key analysis and results (Phase 1-3)
 │   ├── data_analysis1.ipynb
 │   ├── RQ3.ipynb
-│   └── drosselschwab.ipynb
+│   ├── drosselschwab.ipynb
+│   └── RQ2.ipynb
 └── results/             # Generated plots and experiment data
 ```
 
