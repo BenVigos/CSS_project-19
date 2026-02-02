@@ -47,7 +47,8 @@ Detailed analysis and visualizations for each phase can be found in the followin
 ├── notebooks/           # Key analysis and results (Phase 1-3)
 │   ├── data_analysis1.ipynb
 │   ├── RQ3.ipynb
-│   └── drosselschwab.ipynb
+│   ├── drosselschwab.ipynb
+│   └── RQ2.ipynb
 └── results/             # Generated plots and experiment data
 ```
 
@@ -57,6 +58,7 @@ Detailed analysis and visualizations for each phase can be found in the followin
 *   **[`src/`](src/)**: Research-specific implementations.
 *   **[`notebooks/`](notebooks/)**: Key analysis and results.
 *   **[`results/`](results/)**: Generated plots and experiment data.
+*   **[`CSS presentation - group 19.pdf`](CSS%20presentation%20-%20group%2019.pdf)**: Final project presentation slides.
 
 ## Methodology
 

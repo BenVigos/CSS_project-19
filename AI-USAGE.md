@@ -18,6 +18,10 @@
 - Repassed over code written with AI leveraged to document and highlight bottlenecks which then were fixed/ignored based on severity
 
 **Ben**
+- AI was used to convert the base simulation code to a multi-processing compatible version. The code was verified by running tests and comparing the results to the non multi-processing version.
+- AI was then also used to help with debugging a multi-processing related issue when trying to add the suppression parameter to the model. This turned out to be fruitless and the issue was manually fixed.
+- Copilot was used to generate the code for statistical analysis and visualization of the results of RQ2 in RQ2.ipynb. This was done by instructing copilot with the desired plots and analysis and asking it to write the code. The code was then checked over and manual changes were made as necessary.
+- Copilot was also used to help with writing documentation and comments for RQ2.ipynb.
 
 **Everyone**
 - AI was used pretty ubiquitously for matplotlib charts and styling throughout all notebooks
